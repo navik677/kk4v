@@ -21,6 +21,10 @@
 #include <stdint.h>
 #include "win32io.h"
 
+#ifdef __vita__
+#define lseek64 lseek
+#endif
+
 //namespace cocos2d {
 
 voidpf call_zopen64 (const zlib_filefunc64_32_def* pfilefunc,const void*filename,int mode)

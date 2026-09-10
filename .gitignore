@@ -1,0 +1,7 @@
+build/
+build_vita/
+crash/
+*.vpk
+*.self
+*.velf
+*.psp2dmp

@@ -1,6 +1,6 @@
 #include "RenderManager.h"
-#include "renderer/CCTexture2D.h"
-typedef cocos2d::Texture2D::PixelFormat CCPixelFormat;
+// #include "renderer/CCTexture2D.h"
+enum class CCPixelFormat { RGBA8888, RGB888, RGB565, A8, I8, AI88, RGBA4444, RGB5A1, PVRTC4, PVRTC4A, PVRTC2, PVRTC2A, ETC, S3TC_DXT1, S3TC_DXT3, S3TC_DXT5, ATC_RGB, ATC_EXPLICIT_ALPHA, ATC_INTERPOLATED_ALPHA, DEFAULT, NONE };
 #include "MsgIntf.h"
 #include "LayerBitmapIntf.h"
 #include "SysInitIntf.h"
@@ -38,7 +38,7 @@ extern "C" {
 #endif
 
 //#define USE_SWSCALE
-#define USE_CV_AFFINE
+// #define USE_CV_AFFINE
 
 //---------------------------------------------------------------------------
 // heap allocation functions for bitmap bits
@@ -358,6 +358,7 @@ public:
 	virtual tjs_int GetPitch() const { return Pitch; }
 
 	virtual cocos2d::Texture2D* GetAdapterTexture(cocos2d::Texture2D* origTex) override {
+#if 0
 		if (!origTex || origTex->getPixelsWide() != Width || origTex->getPixelsHigh() != Height) {
 			origTex = new cocos2d::Texture2D;
 			origTex->autorelease();
@@ -367,6 +368,7 @@ public:
 		} else {
 			origTex->updateWithData(BmpData, 0, 0, Pitch / 4, Height);
 		}
+#endif
 		return origTex;
 	}
 
@@ -453,6 +455,7 @@ public:
 	}
 
 	virtual cocos2d::Texture2D* GetAdapterTexture(cocos2d::Texture2D* origTex) override {
+#if 0
 		GetPixelData();
 		if (!origTex || origTex->getPixelsWide() != Width || origTex->getPixelsHigh() != Height) {
 			origTex = new cocos2d::Texture2D;
@@ -463,6 +466,7 @@ public:
 		} else {
 			origTex->updateWithData(BmpData, 0, 0, Width, Height);
 		}
+#endif
 		return origTex;
 	}
 };
@@ -533,6 +537,7 @@ public:
 	}
 
 	virtual cocos2d::Texture2D* GetAdapterTexture(cocos2d::Texture2D* origTex) override {
+#if 0
 		if (!origTex || origTex->getPixelsWide() != Width || origTex->getPixelsHigh() != _scanline.size()) {
 			origTex = new cocos2d::Texture2D;
 			origTex->autorelease();
@@ -545,6 +550,7 @@ public:
 			origTex->updateWithData(line, 0, y, Width, 1);
 			++y;
 		}
+#endif
 		return origTex;
 	}
 

@@ -22,6 +22,8 @@
 #include "SysInitIntf.h"
 #include "XP3Archive.h"
 #include "TickCount.h"
+#include "Exception.h"
+#include "tjsError.h"
 
 
 
@@ -34,7 +36,7 @@
 // global variables
 //---------------------------------------------------------------------------
 // current media ( ex. "http" "ftp" "file" )
-ttstr TVPCurrentMedia;
+ttstr TVPCurrentMedia = TJS_W("file");
 // archive delimiter
 // this changes '>' from '#' since 2.19 beta 14
 tjs_char  TVPArchiveDelimiter = '>';
@@ -158,23 +160,28 @@ class tTVPStorageMediaManager
 //		bool IsCaseSensitive;
 
 		tMediaRecord(iTVPStorageMedia *media) : MediaIntf(media), CurrentDomain("."), CurrentPath("/")
-			{ ttstr name; media->GetName(name); MediaNameLen = name.GetLen();
+			{ ttstr name; if(media) media->GetName(name); MediaNameLen = name.GetLen();
 			/*IsCaseSensitive = media->IsCaseSensitive();*/ }
 
 		const tjs_char *GetDomainAndPath(const ttstr &name)
 		{
-			return name.c_str() + MediaNameLen + 3;
-				// 3 = strlen("://")
+			const tjs_char *p = TJS_strstr(name.c_str(), TJS_W("://"));
+			if (p) return p + 3;
+			return name.c_str();
 		}
 	};
 
 	typedef tTJSHashTable<tMediaNameString, tMediaRecord, tHashFunc, 16> tHashTable;
 
 	tHashTable HashTable;
+	tMediaRecord * DefaultMediaRecord;
+	bool Initialized;
 
 public:
 	tTVPStorageMediaManager();
 	~tTVPStorageMediaManager();
+
+	void EnsureInit();
 
 private:
 	static void ThrowUnsupportedMediaType(const ttstr &name);
@@ -197,11 +204,28 @@ public:
 	ttstr GetLocallyAccessibleName(const ttstr &name);
 } TVPStorageMediaManager;
 //---------------------------------------------------------------------------
-tTVPStorageMediaManager::tTVPStorageMediaManager()
+void tTVPStorageMediaManager::EnsureInit()
 {
-	iTVPStorageMedia *filemedia = TVPCreateFileMedia();
-	Register(filemedia);
-	filemedia->Release();
+	if (!Initialized || !DefaultMediaRecord) {
+		TVPCurrentMedia = TJS_W("file");
+		ttstr medianame(TJS_W("file"));
+		tMediaRecord *rec = HashTable.Find(*(tMediaNameString*)&medianame);
+		if (!rec) {
+			iTVPStorageMedia *filemedia = TVPCreateFileMedia();
+			tMediaRecord new_rec(filemedia);
+			HashTable.Add(*(tMediaNameString*)&medianame, new_rec);
+			filemedia->Release();
+			rec = HashTable.Find(*(tMediaNameString*)&medianame);
+		}
+		DefaultMediaRecord = rec;
+		Initialized = true;
+	}
+}
+//---------------------------------------------------------------------------
+tTVPStorageMediaManager::tTVPStorageMediaManager()
+	: DefaultMediaRecord(nullptr), Initialized(false)
+{
+	EnsureInit();
 }
 //---------------------------------------------------------------------------
 tTVPStorageMediaManager::~tTVPStorageMediaManager()
@@ -216,8 +240,27 @@ void tTVPStorageMediaManager::ThrowUnsupportedMediaType(const ttstr &name)
 tTVPStorageMediaManager::tMediaRecord *
 	tTVPStorageMediaManager::GetMediaRecord(const ttstr &name)
 {
-	tMediaRecord *rec = HashTable.Find(*(tMediaNameString*)&name);
-	if(!rec) ThrowUnsupportedMediaType(name);
+	EnsureInit();
+	tMediaRecord *rec = nullptr;
+	if (!name.IsEmpty()) {
+		rec = HashTable.Find(*(tMediaNameString*)&name);
+	}
+	if (!rec) {
+		rec = DefaultMediaRecord;
+	}
+	if (!rec) {
+		ttstr filemedia(TJS_W("file"));
+		rec = HashTable.Find(*(tMediaNameString*)&filemedia);
+	}
+	if (!rec) {
+		iTVPStorageMedia *filemedia = TVPCreateFileMedia();
+		tMediaRecord new_rec(filemedia);
+		ttstr medianame(TJS_W("file"));
+		HashTable.Add(*(tMediaNameString*)&medianame, new_rec);
+		filemedia->Release();
+		rec = HashTable.Find(*(tMediaNameString*)&medianame);
+		DefaultMediaRecord = rec;
+	}
 	return rec;
 }
 //---------------------------------------------------------------------------
@@ -359,7 +402,7 @@ ttstr tTVPStorageMediaManager::NormalizeStorageName(const ttstr &name,
 	// supply omitted and normalize
 	if(media.IsEmpty())
 	{
-		media = TVPCurrentMedia;
+		media = TVPCurrentMedia.IsEmpty() ? ttstr(TJS_W("file")) : TVPCurrentMedia;
 	}
 	else
 	{
@@ -776,6 +819,10 @@ public:
 
 		// not exist in the cache
 		tTVPArchive *arc = TVPOpenArchive(name, true);
+		if(!arc)
+		{
+			TVPThrowExceptionMessage(TVPCannotFindStorage, name);
+		}
 		tHolder holder(arc);
 		ArchiveCache.AddWithHash(name, hash, holder);
 		return arc;
@@ -1065,7 +1112,35 @@ static tjs_uint TVPRebuildAutoPathTable()
 			tjs_int in_arc_name_len = in_arc_name.GetLen();
 
 			tTVPArchive *arc;
-			arc = TVPArchiveCache.Get(arcname);
+			try
+			{
+				arc = TVPArchiveCache.Get(arcname);
+			}
+			catch(const TJS::eTJS &e)
+			{
+				TVPAddImportantLog(TJS_W("(warning) Failed to open archive: ") + arcname +
+					TJS_W(" : ") + e.GetMessage());
+				continue;
+			}
+			catch(const Exception &e)
+			{
+				TVPAddImportantLog(TJS_W("(warning) Failed to open archive: ") + arcname +
+					TJS_W(" : ") + e.what());
+				continue;
+			}
+			catch(const std::exception &e)
+			{
+				TVPAddImportantLog(TJS_W("(warning) Failed to open archive: ") + arcname +
+					TJS_W(" : ") + ttstr(e.what()));
+				continue;
+			}
+			catch(...)
+			{
+				// archive could not be opened; skip it
+				TVPAddImportantLog(TJS_W("(warning) Failed to open archive: ") + arcname +
+					TJS_W(" : unknown exception"));
+				continue;
+			}
 
 			try
 			{

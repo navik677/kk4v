@@ -7,6 +7,7 @@
 #include "TVPColor.h"
 #include "LayerIntf.h"
 #include "Application.h"
+#include "vita_klog.h"
 
 tTJSNI_Bitmap::tTJSNI_Bitmap() : Owner(NULL), Bitmap(NULL), Loading(false) {
 	TVPTempBitmapHolderAddRef();
@@ -15,8 +16,8 @@ tTJSNI_Bitmap::~tTJSNI_Bitmap() {
 	TVPTempBitmapHolderRelease();
 }
 //----------------------------------------------------------------------
-// string, [uint] ƒtƒ@ƒCƒ‹–¼AƒJƒ‰[ƒL[‚Ì‡‚Åw’è
-// uint, uint, [bpp] •A‚‚³Abpp‚Ì‡‚Åw’è
+// string, [uint] ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½Jï¿½ï¿½ï¿½[ï¿½Lï¿½[ï¿½Ìï¿½ï¿½Åwï¿½ï¿½
+// uint, uint, [bpp] ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½Abppï¿½Ìï¿½ï¿½Åwï¿½ï¿½
 tjs_error TJS_INTF_METHOD tTJSNI_Bitmap::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
 	Owner = tjs_obj;
 	if( numparams > 0 ) {
@@ -33,6 +34,11 @@ tjs_error TJS_INTF_METHOD tTJSNI_Bitmap::Construct(tjs_int numparams, tTJSVarian
 			tjs_uint32 bpp = 32;
 			if( numparams > 2 ) {
 				bpp = (tjs_int)*param[2];
+			}
+			{
+				char logMsg[120];
+				snprintf(logMsg, sizeof(logMsg), "[KK4V] Bitmap::Construct: w=%u h=%u bpp=%u", width, height, bpp);
+				KK4V_Log(logMsg);
 			}
 			Bitmap = new tTVPBaseBitmap( width, height, bpp );
 		}
@@ -107,6 +113,11 @@ void tTJSNI_Bitmap::Save(const ttstr &name, const ttstr &type, iTJSDispatch2* me
 }
 //----------------------------------------------------------------------
 void tTJSNI_Bitmap::SetSize(tjs_uint width, tjs_uint height, bool keepimage) {
+	{
+		char logMsg[120];
+		snprintf(logMsg, sizeof(logMsg), "[KK4V] Bitmap::SetSize: w=%u h=%u keepimage=%d", width, height, (int)keepimage);
+		KK4V_Log(logMsg);
+	}
 	if(!Bitmap) TVPThrowExceptionMessage(TVPNotDrawableLayerType);
 
 	if(width == Bitmap->GetWidth() && height == Bitmap->GetHeight()) return;

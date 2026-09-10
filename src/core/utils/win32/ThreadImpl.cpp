@@ -41,6 +41,7 @@ tTVPThread::tTVPThread(bool suspended)
 	if (pthread_attr_init(&attr) != 0) {
 		TVPThrowInternalError;
 	}
+	pthread_attr_setstacksize(&attr, 256 * 1024);
 	if (pthread_create(&Handle, &attr, StartProc, this) != 0) {
 		pthread_attr_destroy(&attr);
 		TVPThrowInternalError;
@@ -56,9 +57,9 @@ tTVPThread::~tTVPThread()
 void * tTVPThread::StartProc(void * arg)
 {
 	tTVPThread* _this = ((tTVPThread*)arg);
-	if (_this->Suspended) {
+	{
 		std::unique_lock<std::mutex> lk(_this->_mutex);
-		_this->_cond.wait(lk);
+		_this->_cond.wait(lk, [_this] { return !_this->Suspended; });
 	}
 	_this->Execute();
 	TVPOnThreadExited();
@@ -118,8 +119,11 @@ void tTVPThread::SetPriority(tTVPThreadPriority pri)
 //---------------------------------------------------------------------------
 void tTVPThread::Resume()
 {
-	Suspended = false;
-	_cond.notify_one();
+	{
+		std::lock_guard<std::mutex> lk(_mutex);
+		Suspended = false;
+	}
+	_cond.notify_all();
 	//while((tjs_int32)ResumeThread(Handle) > 1) ;
 }
 //---------------------------------------------------------------------------
@@ -136,7 +140,8 @@ void tTVPThread::Resume()
 void tTVPThreadEvent::Set()
 {
 	std::unique_lock<std::mutex> lk(Mutex);
-	Handle.notify_one();
+	Signaled = true;
+	Handle.notify_all();
 }
 //---------------------------------------------------------------------------
 void tTVPThreadEvent::WaitFor(tjs_uint timeout)
@@ -145,17 +150,16 @@ void tTVPThreadEvent::WaitFor(tjs_uint timeout)
 	// returns true if the event is set, otherwise (when timed out) returns false.
 
 	std::unique_lock<std::mutex> lk(Mutex);
-	if (timeout != 0) {
-		Handle.wait_for(lk, std::chrono::milliseconds(timeout));
-	} else {
-		Handle.wait(lk);
+	if (Signaled) {
+		Signaled = false;
+		return;
 	}
-#if 0
-	DWORD state = WaitForSingleObject(Handle, timeout == 0 ? INFINITE : timeout);
-
-	if(state == WAIT_OBJECT_0) return true;
-	return false;
-#endif
+	if (timeout != 0) {
+		Handle.wait_for(lk, std::chrono::milliseconds(timeout), [this] { return Signaled; });
+	} else {
+		Handle.wait(lk, [this] { return Signaled; });
+	}
+	Signaled = false;
 }
 //---------------------------------------------------------------------------
 

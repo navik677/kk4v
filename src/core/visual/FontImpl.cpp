@@ -4,6 +4,7 @@
 #include FT_SFNT_NAMES_H
 #include FT_FREETYPE_H
 #include "StorageIntf.h"
+#include "SysInitIntf.h"
 #include "DebugIntf.h"
 #include "MsgIntf.h"
 #include <map>
@@ -18,7 +19,7 @@
 #ifdef _MSC_VER
 #pragma comment(lib,"freetype.lib")
 #endif
-#include "platform/CCFileUtils.h"
+// #include "platform/CCFileUtils.h"
 #include "StorageImpl.h"
 #include "BinaryStream.h"
 
@@ -200,6 +201,7 @@ void TVPInitFontNames()
 		
 		if (TVPEnumFontsProc(Android_GetInternalStoragePath() + "/default.ttf")) break;
 
+#if 0
 		{	// from internal storage
 			auto data = cocos2d::FileUtils::getInstance()->getDataFromFile("DroidSansFallback.ttf");
 			if (TVPInternalEnumFonts(data.getBytes(), data.getSize(), "DroidSansFallback.ttf", [](TVPFontNamePathInfo* info)->tTJSBinaryStream* {
@@ -210,16 +212,31 @@ void TVPInitFontNames()
 				return ret;
 			})) break;
 		}
+#endif
 		if (TVPEnumFontsProc(TJS_W("file://./system/fonts/DroidSansFallback.ttf"))) break;
 		if (TVPEnumFontsProc(TJS_W("file://./system/fonts/NotoSansHans-Regular.otf"))) break;
 		if (TVPEnumFontsProc(TJS_W("file://./system/fonts/DroidSans.ttf"))) break;
 #elif defined(WIN32)
 		if (TVPEnumFontsProc(TJS_W("file://./c/windows/fonts/msyh.ttf"))) break;
 		if (TVPEnumFontsProc(TJS_W("file://./c/windows/fonts/simhei.ttf"))) break;
+#elif defined(__vita__)
+		if (TVPEnumFontsProc(TJS_W("ux0:/data/kirikiroid2/default.ttf"))) break;
+		if (TVPEnumFontsProc(TJS_W("ux0:/data/kirikiroid2/default.ttc"))) break;
+		if (TVPEnumFontsProc(TJS_W("ux0:/data/kirikiroid2/default.otf"))) break;
+		if (!TVPProjectDir.IsEmpty()) {
+			if (TVPEnumFontsProc(TVPProjectDir + TJS_W("default.ttf"))) break;
+			if (TVPEnumFontsProc(TVPProjectDir + TJS_W("default.ttc"))) break;
+			if (TVPEnumFontsProc(TVPProjectDir + TJS_W("default.otf"))) break;
+		}
+		if (TVPEnumFontsProc(TJS_W("app0:/default.ttf"))) break;
+		if (TVPEnumFontsProc(TJS_W("app0:/default.ttc"))) break;
+		if (TVPEnumFontsProc(TJS_W("app0:/default.otf"))) break;
 #endif
         
+#if 0
         std::string fullPath = cocos2d::FileUtils::getInstance()->fullPathForFilename("DroidSansFallback.ttf");
         if (TVPEnumFontsProc(fullPath)) break;
+#endif
 	} while (false);
     if(TVPFontNames.GetCount() > 0)
     {
@@ -230,26 +247,82 @@ void TVPInitFontNames()
     // check exePath + "/fonts/*.ttf"
 	{
 		std::vector<ttstr> list;
-		auto lister = [&](const ttstr &name, tTVPLocalFileInfo* s) {
-			if (s->Mode & (S_IFREG | S_IFDIR)) {
-				list.emplace_back(name);
-			}
+		auto scanDir = [&](const ttstr &dir) {
+			TVPGetLocalFileListAt(dir, [&](const ttstr &name, tTVPLocalFileInfo* s) {
+				if (s->Mode & (S_IFREG | S_IFDIR)) {
+					ttstr full = dir;
+					if (full.GetLastChar() != TJS_W('/') && full.GetLastChar() != TJS_W('\\')) {
+						full += TJS_W("/");
+					}
+					full += name;
+					list.emplace_back(full);
+				}
+			});
 		};
 #ifdef __ANDROID__
-		TVPGetLocalFileListAt(Android_GetInternalStoragePath() + "/fonts", lister);
+		scanDir(Android_GetInternalStoragePath() + "/fonts");
 		for (const ttstr &path : pathlist) {
-			TVPGetLocalFileListAt(path + "/fonts", lister);
+			scanDir(path + "/fonts");
+		}
+#elif defined(__vita__)
+		scanDir(TJS_W("ux0:/data/kirikiroid2/fonts"));
+		scanDir(TJS_W("app0:/fonts"));
+		scanDir(TJS_W("ux0:/data/kirikiroid2"));
+		scanDir(TJS_W("app0:"));
+		if (!TVPProjectDir.IsEmpty()) {
+			scanDir(TVPProjectDir);
+			scanDir(TVPProjectDir + TJS_W("fonts"));
 		}
 #endif
-		TVPGetLocalFileListAt(TVPGetAppPath() + "/fonts", lister);
+		scanDir(TVPGetAppPath() + "fonts");
         auto itend = list.end();
         for (auto it = list.begin(); it != itend; ++it) {
-            TVPEnumFontsProc(*it);
+            ttstr ext = TVPExtractStorageExt(*it).AsLowerCase();
+            if (ext == TJS_W(".ttf") || ext == TJS_W(".ttc") || ext == TJS_W(".otf") || ext == TJS_W(".otc")) {
+                TVPEnumFontsProc(*it);
+            }
+        }
+    }
+
+    if (TVPDefaultFontName.IsEmpty() && TVPFontNames.GetCount() > 0)
+    {
+        TVPDefaultFontName = TVPFontNames.GetLast().GetKey();
+    }
+
+    if (!TVPDefaultFontName.IsEmpty()) {
+        TVPFontNamePathInfo* defInfo = TVPFontNames.Find(TVPDefaultFontName);
+        if (defInfo) {
+            const tjs_char* commonAliases[] = {
+                TJS_W("default"),
+                TJS_W("sans-serif"),
+                TJS_W("serif"),
+                TJS_W("MS Gothic"),
+                TJS_W("ＭＳ ゴシック"),
+                TJS_W("MS PGothic"),
+                TJS_W("ＭＳ Ｐゴシック"),
+                TJS_W("MS Mincho"),
+                TJS_W("ＭＳ 明朝"),
+                TJS_W("Meiryo"),
+                TJS_W("メイリオ"),
+                TJS_W("Yu Gothic"),
+                TJS_W("游ゴシック"),
+                TJS_W("SimHei"),
+                TJS_W("SimSun"),
+                nullptr
+            };
+            for (int i = 0; commonAliases[i]; ++i) {
+                if (!TVPFontNames.Find(commonAliases[i])) {
+                    TVPFontNames.Add(commonAliases[i], *defInfo);
+                }
+            }
         }
     }
 
 	if (TVPDefaultFontName.IsEmpty()) {
 		TVPShowSimpleMessageBox(("Could not found any font.\nPlease ensure that at least \"default.ttf\" exists"), "Exception Occured");
+    } else {
+        printf("[Font] Successfully initialized default font: %ls (total registered: %d)\n", 
+            TVPDefaultFontName.c_str(), TVPFontNames.GetCount());
     }
 }
 //---------------------------------------------------------------------------

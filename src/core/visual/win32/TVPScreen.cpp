@@ -1,17 +1,12 @@
-#include "cocos2d.h"
 #include "tjsCommHead.h"
-
 #include "TVPScreen.h"
 #include "Application.h"
 
 int tTVPScreen::GetWidth() {
-	return 2048;
+	return 960;
 }
 int tTVPScreen::GetHeight() {
-	const cocos2d::Size &size = cocos2d::Director::getInstance()->getOpenGLView()->getFrameSize();
-	int w = GetWidth();
-	int h = w * (size.height / size.width);
-	return w;
+	return 544;
 }
 
 int tTVPScreen::GetDesktopLeft() {
@@ -26,4 +21,3 @@ int tTVPScreen::GetDesktopWidth() {
 int tTVPScreen::GetDesktopHeight() {
 	return GetHeight();
 }
-

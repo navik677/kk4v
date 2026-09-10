@@ -12,7 +12,10 @@
 #include "tjsCommHead.h"
 
 #include "tjs.h"
+#include "tjsNative.h"
 #include "tjsDebug.h"
+#include <sys/stat.h>
+#include <cstdio>
 #include "tjsArray.h"
 #include "ScriptMgnIntf.h"
 #include "StorageIntf.h"
@@ -399,6 +402,131 @@ class tTVPTJSGCCallback : public tTVPCompactEventCallbackIntf
 
 
 //---------------------------------------------------------------------------
+// global readFile() function
+//
+// Some games (e.g. Fate/stay night [Realta Nua]) call a bare global
+// readFile(filename) from scripts, normally provided by a native plugin
+// (util.dll) that this port does not load (see TVPLoadPlugin). Reads the
+// named storage as text and returns its whole content; returns -1 if the
+// storage doesn't exist or fails to open, matching what such scripts check
+// for (e.g. "if (_s != -1) ...").
+//---------------------------------------------------------------------------
+class tTJSNF_readFile : public tTJSNativeFunction
+{
+public:
+	tTJSNF_readFile() : tTJSNativeFunction(TJS_W("readFile")) {}
+protected:
+	tjs_error Process(tTJSVariant *result, tjs_int numparams,
+		tTJSVariant **param, iTJSDispatch2 *objthis)
+	{
+		if(numparams < 1) return TJS_E_BADPARAMCOUNT;
+		ttstr name(*param[0]);
+		iTJSTextReadStream *stream = NULL;
+		try
+		{
+			stream = TJSCreateTextStreamForRead(name, ttstr());
+			ttstr content;
+			stream->Read(content, 0);
+			stream->Destruct();
+			if(result) *result = content;
+		}
+		catch(...)
+		{
+			if(stream) stream->Destruct();
+			if(result) *result = (tjs_int)-1;
+		}
+		return TJS_S_OK;
+	}
+};
+//---------------------------------------------------------------------------
+// global GetFileSize() / DeleteFile() / MoveFile() functions
+//
+// Same story as readFile(): normally provided by util.dll, which this port
+// doesn't load. GetFileSize returns -1 for a nonexistent/inaccessible file
+// (scripts check "if (sz < 0)"); DeleteFile/MoveFile return a boolean.
+//---------------------------------------------------------------------------
+class tTJSNF_GetFileSize : public tTJSNativeFunction
+{
+public:
+	tTJSNF_GetFileSize() : tTJSNativeFunction(TJS_W("GetFileSize")) {}
+protected:
+	tjs_error Process(tTJSVariant *result, tjs_int numparams,
+		tTJSVariant **param, iTJSDispatch2 *objthis)
+	{
+		if(numparams < 1) return TJS_E_BADPARAMCOUNT;
+		tjs_int64 size = -1;
+		try
+		{
+			ttstr name(*param[0]);
+			TVPGetLocalName(name);
+			tTVP_stat st;
+			if(TVP_stat(name.c_str(), st) && (st.st_mode & S_IFREG))
+				size = (tjs_int64)st.st_size;
+		}
+		catch(...)
+		{
+			size = -1;
+		}
+		if(result) *result = size;
+		return TJS_S_OK;
+	}
+};
+//---------------------------------------------------------------------------
+class tTJSNF_DeleteFile : public tTJSNativeFunction
+{
+public:
+	tTJSNF_DeleteFile() : tTJSNativeFunction(TJS_W("DeleteFile")) {}
+protected:
+	tjs_error Process(tTJSVariant *result, tjs_int numparams,
+		tTJSVariant **param, iTJSDispatch2 *objthis)
+	{
+		if(numparams < 1) return TJS_E_BADPARAMCOUNT;
+		bool ok = false;
+		try
+		{
+			ttstr name(*param[0]);
+			TVPGetLocalName(name);
+			std::string narrow = name.AsNarrowStdString();
+			ok = (remove(narrow.c_str()) == 0);
+		}
+		catch(...)
+		{
+			ok = false;
+		}
+		if(result) *result = ok;
+		return TJS_S_OK;
+	}
+};
+//---------------------------------------------------------------------------
+class tTJSNF_MoveFile : public tTJSNativeFunction
+{
+public:
+	tTJSNF_MoveFile() : tTJSNativeFunction(TJS_W("MoveFile")) {}
+protected:
+	tjs_error Process(tTJSVariant *result, tjs_int numparams,
+		tTJSVariant **param, iTJSDispatch2 *objthis)
+	{
+		if(numparams < 2) return TJS_E_BADPARAMCOUNT;
+		bool ok = false;
+		try
+		{
+			ttstr src(*param[0]);
+			ttstr dst(*param[1]);
+			TVPGetLocalName(src);
+			TVPGetLocalName(dst);
+			std::string narrowSrc = src.AsNarrowStdString();
+			std::string narrowDst = dst.AsNarrowStdString();
+			ok = (rename(narrowSrc.c_str(), narrowDst.c_str()) == 0);
+		}
+		catch(...)
+		{
+			ok = false;
+		}
+		if(result) *result = ok;
+		return TJS_S_OK;
+	}
+};
+//---------------------------------------------------------------------------
 // TVPInitScriptEngine
 //---------------------------------------------------------------------------
 static bool TVPScriptEngineInit = false;
@@ -549,6 +677,21 @@ void TVPInitScriptEngine()
 		TJS_W("PassThroughDrawDevice"), NULL, &val, windowclass); // compatible for old version kr2
 	REGISTER_OBJECT(MenuItem, TVPCreateNativeClass_MenuItem()); // register "menu" to windowclass
 
+	/* bare global functions */
+#define REGISTER_GLOBAL_FUNC(tjsname, cls) \
+	{ \
+		iTJSDispatch2 *fn = new cls(); \
+		tTJSVariant fnval(fn); \
+		fn->Release(); \
+		global->PropSet(TJS_MEMBERENSURE|TJS_IGNOREPROP, TJS_W(tjsname), NULL, \
+			&fnval, global); \
+	}
+	REGISTER_GLOBAL_FUNC("readFile", tTJSNF_readFile);
+	REGISTER_GLOBAL_FUNC("GetFileSize", tTJSNF_GetFileSize);
+	REGISTER_GLOBAL_FUNC("DeleteFile", tTJSNF_DeleteFile);
+	REGISTER_GLOBAL_FUNC("MoveFile", tTJSNF_MoveFile);
+#undef REGISTER_GLOBAL_FUNC
+
 	// Add Extension Classes
 	TVPCauseAtInstallExtensionClass( global );
 
@@ -569,13 +712,12 @@ void TVPUninitScriptEngine()
 	if(TVPScriptEngineUninit) return;
 	TVPScriptEngineUninit = true;
 
-	//TVPScriptEngine->Shutdown();
-	TVPScriptEngine->Release();
-	/*
-		Objects, theirs lives are contolled by reference counter, may not be all
-		freed here in some occations.
-	*/
-	TVPScriptEngine = NULL;
+	if(TVPScriptEngine)
+	{
+		//TVPScriptEngine->Shutdown();
+		TVPScriptEngine->Release();
+		TVPScriptEngine = NULL;
+	}
 }
 //---------------------------------------------------------------------------
 
@@ -1208,8 +1350,10 @@ void TVPShowScriptException(eTJSScriptError &e)
 	{
 		ttstr errstr = (ttstr(TVPScriptExceptionRaised) + TJS_W("\n") + e.GetMessage());
 		TVPAddLog(ttstr(TVPScriptExceptionRaised) + TJS_W("\n") + e.GetMessage());
-		if(e.GetTrace().GetLen() != 0)
+		if(e.GetTrace().GetLen() != 0) {
 			TVPAddLog(ttstr(TJS_W("trace : ")) + e.GetTrace());
+			errstr += TJS_W("\n\nTrace:\n") + e.GetTrace();
+		}
 		TVPShowSimpleMessageBox(errstr, TVPGetErrorDialogTitle());
 	//	Application->MessageDlg( errstr.AsStdString(), Application->GetTitle(), mtStop, mbOK );
 
@@ -1229,11 +1373,11 @@ void TVPShowScriptException(eTJSScriptError &e)
 				tjs_int lineno = 1+e.GetBlockNoAddRef()->SrcPosToLine(e.GetPosition() )- e.GetBlockNoAddRef()->GetLineOffset();
 
 #if defined(WIN32) && defined(_DEBUG) && !defined(ENABLE_DEBUGGER)
-// ƒfƒoƒbƒKÀs‚³‚ê‚Ä‚¢‚éAVisual Studio ‚ÅsƒWƒƒƒ“ƒv‚·‚é‚Ìw’è‚ğƒfƒoƒbƒOo—Í‚Éo‚µ‚ÄAbreak ‚Å’â~‚·‚é
+// åƒ¨åƒ¶åƒ¢åƒˆå¹šå³´åå‚Ÿå°å„å‚å¸ªä¸„Visual Studio å±å³´åƒ•å„å„åƒ¾å¡å‚å¸ªåºå·œæ•å‚ªåƒ¨åƒ¶åƒ¢åƒŒå¼Œæ¤¡åµå¼ŒåŸå°ä¸„break å±æ†å·­å¡å‚
 				if( ::IsDebuggerPresent() ) {
 					std::wstring debuglile( std::wstring(L"2>")+path.AsStdString()+L"("+std::to_wstring(lineno)+L"): error :" + errstr.AsStdString() );
 					::OutputDebugString( debuglile.c_str() );
-					// ‚±‚±‚Å break‚Å’â~‚µ‚½A’¼‘O‚Ìo—Ís‚ğƒ_ƒuƒ‹ƒNƒŠƒbƒN‚·‚ê‚ÎA—áŠO‰ÓŠ‚ÌƒXƒNƒŠƒvƒg‚ğVisual Studio‚ÅŠJ‚¯‚é
+					// å™å™å± breakå±æ†å·­åŸå¨å¸ªä¸„æˆæ…œåºå¼Œæ¤¡å³´å‚ªåƒŸåƒ½å„–åƒ‹å„•åƒ¢åƒ‹å¡å‚Ÿå½ä¸„æ¤ºå¥œå£²å¼·åºåƒ—åƒ‹å„•åƒ¾åƒ©å‚ªVisual Studioå±å¥å—å‚
 					::DebugBreak();
 				}
 #endif

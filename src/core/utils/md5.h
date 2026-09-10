@@ -71,8 +71,7 @@ typedef struct md5_state_s {
 } md5_state_t;
 
 #ifdef __cplusplus
-extern "C" 
-{
+extern "C" {
 #endif
 
 /* Initialize the algorithm. */
@@ -85,7 +84,7 @@ void md5_append(md5_state_t *pms, const md5_byte_t *data, int nbytes);
 void md5_finish(md5_state_t *pms, md5_byte_t digest[16]);
 
 #ifdef __cplusplus
-}  /* end extern "C" */
+}
 #endif
 
 #endif /* md5_INCLUDED */

@@ -13,6 +13,7 @@
 // #include <cderr.h>
 // #include <objbase.h>
 
+#include "vita_klog.h"
 #include "MsgIntf.h"
 
 #include "StorageImpl.h"
@@ -32,13 +33,15 @@
 #include "StringUtil.h"
 #include "FilePathUtil.h"
 #include "Platform.h"
-#include "platform/CCPlatformConfig.h"
+// #include "platform/CCPlatformConfig.h"
 #include "dirent.h"
 #include "TickCount.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include "combase.h"
 #include "win32io.h"
+
+#define lseek64 lseek
 
 //---------------------------------------------------------------------------
 // tTVPFileMedia
@@ -213,7 +216,7 @@ void TJS_INTF_METHOD tTVPFileMedia::GetListAt(const ttstr &_name, iTVPStorageLis
 	}
 #endif
 	TVPGetLocalFileListAt(name, [lister](const ttstr &name, tTVPLocalFileInfo* s) {
-		if (s->Mode & (S_IFREG)) {
+		if ((s->Mode & S_IFREG) || (s->Mode & 0020000)) {
 			lister->Add(name);
 		}
 	});
@@ -298,6 +301,25 @@ void TJS_INTF_METHOD tTVPFileMedia::GetLocallyAccessibleName(ttstr &name)
 		pp++;
 	}
 #else // posix
+#if defined(__vita__)
+    if(!TJS_strncmp(ptr, TJS_W("./"), 2)) {
+        ptr += 2;  // skip "./"
+    }
+    const tjs_char* colon = TJS_strchr(ptr, TJS_W(':'));
+    if (colon) {
+        newname = ptr;
+    } else {
+        const tjs_char* first_slash = TJS_strchr(ptr, TJS_W('/'));
+        if (first_slash) {
+            ttstr dev(ptr, (int)(first_slash - ptr));
+            newname = dev + TJS_W(":") + first_slash;
+        } else {
+            newname = ptr;
+        }
+    }
+    name = newname;
+    return;
+#endif
     if(!TJS_strncmp(ptr, TJS_W("./"), 2)) {
         ptr += 2;  // skip "./"
         newname.Clear();
@@ -415,6 +437,32 @@ void TVPPreNormalizeStorageName(ttstr &name)
 		}
 	}
 #else // posix
+#if defined(__vita__)
+	if (TJS_strstr(name.c_str(), TJS_W("://")) != nullptr) {
+		return;
+	}
+	const tjs_char* colon = TJS_strchr(name.c_str(), TJS_W(':'));
+	if(colon && colon != name.c_str())
+	{
+		const tjs_char* p = name.c_str();
+		bool validDev = true;
+		while (p < colon) {
+			if (*p == TJS_W('/') || *p == TJS_W('\\')) {
+				validDev = false;
+				break;
+			}
+			p++;
+		}
+		int devlen = (int)(colon - name.c_str());
+		if (validDev && devlen >= 2 && devlen <= 16) {
+			ttstr dev(name.c_str(), devlen);
+			const tjs_char* after = colon + 1;
+			while(*after == TJS_W('/') || *after == TJS_W('\\')) after++;
+			name = ttstr(TJS_W("file://./")) + dev + TJS_W("/") + after;
+			return;
+		}
+	}
+#endif
     if(namelen>=1) {
         if(name[0] == TJS_W('/')) {
             name = ttstr(TJS_W("file://.")) + name;
@@ -512,8 +560,15 @@ ttstr TVPGetAppPath()
 	static ttstr exepath(TVPExtractStoragePath(TVPNormalizeStorageName(ExePath())));
 	return exepath;
 #endif
-	static ttstr apppath(TVPExtractStoragePath(TVPProjectDir));
-	return apppath;
+	ttstr proj = TVPProjectDir;
+	if (!proj.IsEmpty()) {
+		const tjs_char *delim = TJS_strchr(proj.c_str(), TVPArchiveDelimiter);
+		if (delim) {
+			proj = ttstr(proj.c_str(), (int)(delim - proj.c_str()));
+		}
+		return TVPExtractStoragePath(proj);
+	}
+	return TJS_W("");
 }
 //---------------------------------------------------------------------------
 
@@ -552,10 +607,18 @@ bool TVPCheckExistentLocalFile(const ttstr &name)
 		return true; // a file
 #endif
 	tTVP_stat s;
-    if(!TVP_stat(name.c_str(), s)) {
+    bool exists = TVP_stat(name.c_str(), s);
+    {
+        std::string narrow = name.AsNarrowStdString();
+        char logMsg[400];
+        snprintf(logMsg, sizeof(logMsg), "[KK4V] TVPCheckExistentLocalFile(\"%s\") -> stat=%d mode=0%o",
+                 narrow.c_str(), exists ? 1 : 0, exists ? (unsigned)s.st_mode : 0u);
+        KK4V_Log(logMsg);
+    }
+    if(!exists) {
         return false; // not exist
     }
-    return s.st_mode & S_IFREG;
+    return (s.st_mode & S_IFREG) || (s.st_mode & 0020000);
 }
 //---------------------------------------------------------------------------
 
@@ -579,7 +642,7 @@ bool TVPCheckExistentLocalFolder(const ttstr &name)
         return false; // not exist
     }
 
-    return s.st_mode & S_IFDIR;
+    return (s.st_mode & S_IFDIR) || (s.st_mode & 0010000);
 }
 //---------------------------------------------------------------------------
 
@@ -772,6 +835,17 @@ tTVPLocalFileStream::tTVPLocalFileStream(const ttstr &origname,
 
 	tTJSNarrowStringHolder holder(localname.c_str());
 	Handle = open(holder, rw, 0666);
+#if defined(__vita__)
+	if (Handle < 0) {
+		const char* hstr = holder;
+		const char* colon = strchr(hstr, ':');
+		if (colon && colon[1] == '/') {
+			std::string alt(hstr, colon - hstr + 1);
+			alt += (colon + 2);
+			Handle = open(alt.c_str(), rw, 0666);
+		}
+	}
+#endif
 	if (Handle < 0) {
 		if (access == TJS_BS_APPEND || access == TJS_BS_UPDATE) {
 			// use whole file writing

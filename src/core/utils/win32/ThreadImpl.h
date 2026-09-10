@@ -65,8 +65,10 @@ class tTVPThreadEvent
 {
 	std::condition_variable Handle;
 	std::mutex Mutex;
+	bool Signaled;
 
 public:
+	tTVPThreadEvent() : Signaled(false) {}
 	void Set();
 	void WaitFor(tjs_uint timeout);
 };

@@ -1,4 +1,5 @@
 #include "tjsCommHead.h"
+#include "vita_klog.h"
 
 #include <algorithm>
 #include <string>
@@ -28,8 +29,10 @@
 #include "Platform.h"
 #include "EventIntf.h"
 #include <thread>
+#include <dirent.h>
 #include "ConfigManager/LocaleConfigManager.h"
 #include "StorageIntf.h"
+#include "StorageImpl.h"
 extern "C" {
 #include <libavutil/avstring.h>
 }
@@ -50,7 +53,9 @@ static tTJSCriticalSection _NoMemCallBackCS;
 static void *_reservedMem = malloc(1024 * 1024 * 4); // 4M reserved mem
 static bool _project_startup = false;
 tTJS *TVPAppScriptEngine;
+#if !defined(__vita__)
 #define HOOK_MALLOC
+#endif
 
 static void _do_compact() {
 	TVPDeliverCompactEvent(TVP_COMPACT_LEVEL_MAX);
@@ -245,7 +250,7 @@ extern void TVPHandleSEHException( int ErrorCode, EXCEPTION_RECORD *P, unsigned 
 extern void TVPHandleSEHException( int ErrorCode, EXCEPTION_RECORD *P, unsigned long osEsp, PCONTEXT ctx);
 #endif
 
-// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ÌŠJn‚ÉŒÄ‚Ô
+// å‚¾åƒ¾å„•åƒä¹•åƒ”å„‘å„åºå¥å·’å¸ªåµå±‡å‚‡
 inline void CheckMemoryLeaksStart()
 {
 #ifdef  _DEBUG
@@ -311,7 +316,7 @@ char ** _argv;
 extern void TVPInitCompatibleNativeFunctions();
 extern void TVPLoadMessage();
 AcceleratorKeyTable::AcceleratorKeyTable() {
-	// ƒfƒtƒHƒ‹ƒg‚ğ“Ç‚İ‚Ş
+	// åƒ¨åƒ¼åƒ…å„–åƒ©å‚ªæ’‰å‚’å´¬å‚“
 	hAccel_ = ::LoadAccelerators( (HINSTANCE)GetModuleHandle(0), MAKEINTRESOURCE(IDC_TVPWIN32));
 }
 AcceleratorKeyTable::~AcceleratorKeyTable() {
@@ -351,7 +356,7 @@ AcceleratorKey::~AcceleratorKey() {
 	delete[] keys_;
 }
 void AcceleratorKey::AddKey( WORD id, WORD key, BYTE virt ) {
-	// ‚Ü‚¸‚Í‘¶İ‚·‚é‚©ƒ`ƒFƒbƒN‚·‚é
+	// å‚‘å¢å¼æ‡šåµ¼å¡å‚ååƒ åƒƒåƒ¢åƒ‹å¡å‚
 	bool found = false;
 	int index = 0;
 	for( int i = 0; i < key_count_; i++ ) {
@@ -362,9 +367,9 @@ void AcceleratorKey::AddKey( WORD id, WORD key, BYTE virt ) {
 		}
 	}
 	if( found ) {
-		// Šù‚É“o˜^‚³‚ê‚Ä‚¢‚éƒRƒ}ƒ“ƒh‚È‚Ì‚ÅƒL[î•ñ‚ÌXV‚ğs‚¤
+		// å©›åµæŠæ¦åå‚Ÿå°å„å‚åƒå„…å„åƒªå´åºå±åƒ‰ä¹•å¿£æ›¬åºå³æ€´å‚ªå³´å†
 		if( keys_[index].key == key && keys_[index].fVirt == virt ) {
-			// •ÏX‚³‚ê‚Ä‚¢‚È‚¢
+			// æ›„å³åå‚Ÿå°å„å´å„
 			return;
 		}
 		keys_[index].key = key;
@@ -390,7 +395,7 @@ void AcceleratorKey::AddKey( WORD id, WORD key, BYTE virt ) {
 
 }
 void AcceleratorKey::DelKey( WORD id ) {
-	// ‚Ü‚¸‚Í‘¶İ‚·‚é‚©ƒ`ƒFƒbƒN‚·‚é
+	// å‚‘å¢å¼æ‡šåµ¼å¡å‚ååƒ åƒƒåƒ¢åƒ‹å¡å‚
 	bool found = false;
 	for( int i = 0; i < key_count_; i++ ) {
 		if( keys_[i].cmd == id ) {
@@ -400,7 +405,7 @@ void AcceleratorKey::DelKey( WORD id ) {
 	}
 	if( found == false ) return;
 
-	// ‘¶İ‚µ‚½ê‡ì‚è’¼‚µ
+	// æ‡šåµ¼åŸå¨å¿œå´Œå¶Œå‚æˆåŸ
 	ACCEL* table = new ACCEL[key_count_-1];
 	int dest = 0;
 	for( int i = 0; i < key_count_; i++ ) {
@@ -420,12 +425,12 @@ void AcceleratorKey::DelKey( WORD id ) {
 int APIENTRY WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow ) {
 	try {
 		CheckMemoryLeaksStart();
-		// ƒEƒHƒbƒ`‚Å _crtBreakAlloc ‚ÉƒZƒbƒg‚·‚é
+		// åƒ‚åƒ…åƒ¢åƒ å± _crtBreakAlloc åµåƒ™åƒ¢åƒ©å¡å‚
 
-		// XP ‚æ‚èŒã‚Åg‚¦‚éAPI‚ğ“®“I‚É“Ç‚İ‚ñ‚ÅŒİŠ·«‚ğæ‚é
+		// XP å‚›å‚å±»å±å·ŠåŠå‚APIå‚ªæ‘¦æ‘åµæ’‰å‚’å´¬å‚«å±å±³å§ºæƒˆå‚ªåº¢å‚
 		TVPInitCompatibleNativeFunctions();
 
-		// ƒƒbƒZ[ƒW•¶š—ñ‚ğƒŠƒ\[ƒX‚©‚ç“Ç‚İ
+		// å„Šåƒ¢åƒ™ä¹•åƒ•æš¥å¸¤æ¥å‚ªå„•åƒœä¹•åƒ—åå‚œæ’‰å´¬å‚’
 		TVPLoadMessage();
 
 		_argc = __argc;
@@ -437,12 +442,12 @@ int APIENTRY WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	
 		// delete application and exit forcely
 		// this prevents ugly exception message on exit
-		// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ğíœ‚µ‹­§I—¹‚³‚¹‚éB
-		// ‚±‚ê‚ÍI—¹‚ÌX‚¢—áŠOƒƒbƒZ[ƒW‚ğ—}~‚·‚é
+		// å‚¾åƒ¾å„•åƒä¹•åƒ”å„‘å„å‚ªå¶å½åŸå«®æƒ‚å»”æ¤†åå£å‚ä¸…
+		// å™å‚Ÿå¼å»”æ¤†å¸ªåºå»¥å„æ¤ºå¥œå„Šåƒ¢åƒ™ä¹•åƒ•å‚ªæ¢·å·­å¡å‚
 		delete Application;
 
 #ifndef _DEBUG
-//		::ExitProcess(TVPTerminateCode); // ‚±‚±‚ÅI—¹‚³‚¹‚é‚Æƒƒ‚ƒŠƒŠ[ƒN•\¦‚ªs‚í‚ê‚È‚¢
+//		::ExitProcess(TVPTerminateCode); // å™å™å±å»”æ¤†åå£å‚å²å„Šå„Œå„•å„•ä¹•åƒ‹æ˜å¸µå‘å³´å‚¢å‚Ÿå´å„
 #endif
 	} catch (...) {
 		return 2;
@@ -458,7 +463,7 @@ tTVPApplication::~tTVPApplication() {
 // 	while( windows_list_.size() ) {
 // 		std::vector<TTVPWindowForm*>::iterator i = windows_list_.begin();
 // 		delete (*i);
-// 		// TTVPWindowForm ‚ÌƒfƒXƒgƒ‰ƒNƒ^“à‚ÅƒŠƒXƒg‚©‚çíœ‚³‚ê‚é‚Í‚¸
+// 		// TTVPWindowForm åºåƒ¨åƒ—åƒ©å„”åƒ‹åƒæ’ªå±å„•åƒ—åƒ©åå‚œå¶å½åå‚Ÿå‚å¼å¢
 // 	}
 // 	windows_list_.clear();
 	delete image_load_thread_;
@@ -569,26 +574,86 @@ bool tTVPApplication::StartApplication(ttstr path) {
 	try {
 //		if(TVPCheckProcessLog()) return true; // sub-process for processing object hash map log
 
+		tjs_char last_ch = path.GetLastChar();
+		if (last_ch != TVPArchiveDelimiter && last_ch != TJS_W('/') && last_ch != TJS_W('\\')) {
+			if (TVPCheckExistentLocalFile(path)) {
+				path += TVPArchiveDelimiter;
+			} else {
+				path += TJS_W("/");
+			}
+		}
+
 		TVPProjectDir = TVPNormalizeStorageName(path);
+		TVPSetCurrentDirectory(TVPProjectDir);
+		KK4V_Log("[KK4V] StartApplication: project dir set");
 
 		TVPInitScriptEngine();
+		KK4V_Log("[KK4V] StartApplication: script engine initialized");
 		TVPInitFontNames();
+		KK4V_Log("[KK4V] StartApplication: font names initialized");
 
 		// banner
 		TVPAddImportantLog( TVPFormatMessage(TVPProgramStartedOn, TVPGetOSName(), TVPGetPlatformName()) );
 
 		// TVPInitializeBaseSystems
 		TVPInitializeBaseSystems();
+		KK4V_Log("[KK4V] StartApplication: base systems initialized");
 
 		Initialize();
+		KK4V_Log("[KK4V] StartApplication: Initialize() done");
+
+		// Auto-mount game directory and any archives (*.xp3, *.kxp) in it
+		ttstr appDir = TVPGetAppPath();
+		if (!appDir.IsEmpty()) {
+			ttstr localAppDir = appDir;
+			TVPGetLocalName(localAppDir);
+			DIR *dir = opendir(localAppDir.AsNarrowStdString().c_str());
+			if (dir) {
+				struct dirent *ent;
+				std::vector<ttstr> archives;
+				while ((ent = readdir(dir)) != nullptr) {
+					if (ent->d_name[0] == '.') continue;
+					std::string fname = ent->d_name;
+					std::string ext;
+					size_t dot = fname.find_last_of('.');
+					if (dot != std::string::npos) {
+						ext = fname.substr(dot);
+						for (auto &c : ext) c = tolower((unsigned char)c);
+					}
+					if (ext == ".xp3" || ext == ".kxp") {
+						archives.push_back(appDir + ttstr(fname.c_str()) + TVPArchiveDelimiter);
+					}
+				}
+				closedir(dir);
+				// Sort so data.xp3 comes first, then patch.xp3, patch2.xp3, etc.
+				std::sort(archives.begin(), archives.end());
+				for (const auto &arc : archives) {
+					TVPAddImportantLog(TJS_W("(info) Auto-registering archive: ") + arc);
+					TVPAddAutoPath(arc);
+				}
+			}
+			TVPAddAutoPath(appDir);
+		}
+		KK4V_Log("[KK4V] StartApplication: archives auto-mounted");
 
 		if(TVPCheckPrintDataPath()) return true;
 		if(TVPExecuteUserConfig()) return true;
-		
+
 		image_load_thread_ = new tTVPAsyncImageLoader();
 
 		TVPLoadPluigins(); // load plugin module *.tpm
+		KK4V_Log("[KK4V] StartApplication: plugins loaded");
 		TVPSystemInit();
+		KK4V_Log("[KK4V] StartApplication: TVPSystemInit() done");
+
+		// TVPSystemInit() is the first point where the log directory
+		// (TVPNativeDataPath) is known, so file logging can only be turned on
+		// after this call returns (turning it on earlier silently and
+		// permanently disables it for the whole run - see tTVPLogStreamHolder::Open).
+		// Force it on unconditionally (not just on error) so a silent hang still
+		// leaves a trail on disk: <gamefolder>/savedata/krkr.console.log
+		TVPStartLogToFile(true);
+		KK4V_Log("[KK4V] StartApplication: TVPStartLogToFile done (see savedata/krkr.console.log)");
 
 		if(TVPCheckAbout()) return true; // version information dialog box;
 
@@ -596,11 +661,18 @@ bool tTVPApplication::StartApplication(ttstr path) {
 		TVPSystemControl = new tTVPSystemControl();
 		// Check digitizer
 		CheckDigitizer();
+		KK4V_Log("[KK4V] StartApplication: SystemControl + digitizer ready");
 
 		// start image load thread
+		TVPAddImportantLog(TJS_W("(kk4v) resuming async image load thread"));
 		image_load_thread_->Resume();
+		KK4V_Log("[KK4V] StartApplication: image load thread resumed");
 
+		TVPAddImportantLog(TJS_W("(kk4v) running startup script"));
+		KK4V_Log("[KK4V] StartApplication: calling TVPInitializeStartupScript()...");
 		/*if(TVPProjectDirSelected)*/ TVPInitializeStartupScript();
+		KK4V_Log("[KK4V] StartApplication: TVPInitializeStartupScript() returned");
+		TVPAddImportantLog(TJS_W("(kk4v) startup script finished"));
 		_project_startup = true;
 //		Run();
 #if 0
@@ -618,13 +690,16 @@ bool tTVPApplication::StartApplication(ttstr path) {
 		}
 #endif
 	} catch( const EAbort & ) {
+		KK4V_Log("[KK4V] StartApplication: caught EAbort");
 		// nothing to do
 #if !(defined(_MSC_VER) && defined(_DEBUG))
 	} catch (const Exception &exception) {
+		KK4V_Log("[KK4V] StartApplication: caught Exception");
 		TVPOnError();
 		if(!TVPSystemUninitCalled)
 			ShowException(exception.what());
 	} catch( const TJS::eTJSScriptError &e ) {
+		KK4V_Log("[KK4V] StartApplication: caught eTJSScriptError");
 		TVPOnError();
 		if (!TVPSystemUninitCalled) {
 			ttstr msg;
@@ -646,14 +721,18 @@ bool tTVPApplication::StartApplication(ttstr path) {
 			ShowException(msg);
 		}
 	} catch( const TJS::eTJS &e) {
+		KK4V_Log("[KK4V] StartApplication: caught eTJS");
 		TVPOnError();
 		if(!TVPSystemUninitCalled)
 			ShowException( e.GetMessage() );
 	} catch( const std::exception &e ) {
+		KK4V_Log("[KK4V] StartApplication: caught std::exception");
 		ShowException( e.what() );
 	} catch( const char* e ) {
+		KK4V_Log("[KK4V] StartApplication: caught const char*");
 		ShowException( e );
 	} catch( const tjs_char* e ) {
+		KK4V_Log("[KK4V] StartApplication: caught const tjs_char*");
 		ShowException( e );
 #if 0
 	} catch( const SEHException& e ) {
@@ -673,11 +752,11 @@ bool tTVPApplication::StartApplication(ttstr path) {
 	return false;
 }
 /**
- * ƒRƒ“ƒ\[ƒ‹‚©‚ç‚Ì‹N“®‚©Šm”F‚µAƒRƒ“ƒ\[ƒ‹‚©‚ç‚Ì‹N“®‚Ìê‡‚ÍA•W€o—Í‚ğŠ„‚è“–‚Ä‚é
+ * åƒå„åƒœä¹•å„–åå‚œåºå©²æ‘¦åå¦‹æ“£åŸä¸„åƒå„åƒœä¹•å„–åå‚œåºå©²æ‘¦åºå¿œå´Œå¼ä¸„æ˜—å¼¨å¼Œæ¤¡å‚ªå¦±å‚æ‘‰å°å‚
  */
 void tTVPApplication::CheckConsole() {
 #ifdef TVP_LOG_TO_COMMANDLINE_CONSOLE
-	if( has_map_report_process_ ) return; // ‘‚«o‚µ—pqƒvƒƒZƒX‚µ‚Ä‹N“®‚³‚ê‚Ä‚¢‚½‚ÍƒRƒ“ƒ\[ƒ‹Ú‘±‚µ‚È‚¢
+	if( has_map_report_process_ ) return; // å½‚å’å¼ŒåŸæ¢¡å·•åƒ¾å„˜åƒ™åƒ—åŸå°å©²æ‘¦åå‚Ÿå°å„å¨å¸ªå¼åƒå„åƒœä¹•å„–æ„™æ‡•åŸå´å„
 	HANDLE hin  = ::GetStdHandle(STD_INPUT_HANDLE);
 	HANDLE hout = ::GetStdHandle(STD_OUTPUT_HANDLE);
 	HANDLE herr = ::GetStdHandle(STD_ERROR_HANDLE);
@@ -701,7 +780,7 @@ void tTVPApplication::CheckConsole() {
 		wchar_t console[256];
 		::GetConsoleTitle( console, 256 );
 		console_title_ = std::wstring( console );
-		// Œ³‚Ìƒnƒ“ƒhƒ‹‚ğÄŠ„‚è“–‚Ä
+		// å°¦åºåƒ´å„åƒªå„–å‚ªåµå¦±å‚æ‘‰å°
 		if (hin)  ::SetStdHandle(STD_INPUT_HANDLE, hin);
 		if (hout) ::SetStdHandle(STD_OUTPUT_HANDLE, hout);
 		if (herr) ::SetStdHandle(STD_ERROR_HANDLE, herr);
@@ -963,7 +1042,7 @@ void tTVPApplication::DeleteAcceleratorKeyTable( HWND hWnd ) {
 }
 #endif
 void tTVPApplication::CheckDigitizer() {
-	// Windows 7 ˆÈ~‚Å‚Ì‚İ—LŒø
+	// Windows 7 åŸ²å´€å±åºå‚’æ¡³å² 
 #if 0
 	OSVERSIONINFOEX ovi;
 	ovi.dwOSVersionInfoSize = sizeof(ovi);
@@ -1069,7 +1148,7 @@ bool tTVPApplication::GetNotMinimizing() const
 	if( hWnd != INVALID_HANDLE_VALUE && hWnd != NULL ) {
 		return ::IsIconic( hWnd ) == 0;
 	}
-	return true; // ƒƒCƒ“‚ª‚È‚¢‚ÍÅ¬‰»‚³‚ê‚Ä‚¢‚é‚Æ‚İ‚È‚·
+	return true; // å„Šåƒ€å„å‘å´å„å¸ªå¼åµŸå½«å£”åå‚Ÿå°å„å‚å²å‚’å´å¡
 #endif
 }
 #if 0
@@ -1136,8 +1215,9 @@ void TVPInitWindowOptions() {
 	;
 }
 
+extern "C" char *TVPLocalDirname(char *path);
 std::string ExtractFileDir(const std::string & FileName) {
-	return av_dirname((char*)FileName.c_str());
+	return TVPLocalDirname((char*)FileName.c_str());
 }
 
 unsigned long ColorToRGB(unsigned int col)

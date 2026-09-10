@@ -22,6 +22,7 @@
 #include "ThreadIntf.h"
 #include "gl/ResampleImage.h"
 #include "RenderManager.h"
+#include "vita_klog.h"
 #include <assert.h>
 
 //#define TVP_FORCE_BILINEAR
@@ -1142,11 +1143,11 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 
 	tjs_int w = ref->GetWidth();
 	tjs_int h = ref->GetHeight();
-	// 9 + ã‰º‚Ì11ƒsƒNƒZƒ‹‚Í•K—v
+	// 9 + ï¿½ã‰ºï¿½ï¿½11ï¿½sï¿½Nï¿½Zï¿½ï¿½ï¿½Í•Kï¿½v
 	if( w < 11 || h < 11 ) return false;
 	tjs_int dw = GetWidth();
 	tjs_int dh = GetHeight();
-	// ƒRƒs[æ‚ªŒ³‰æ‘œ‚æ‚è‚à¬‚³‚¢‚ÍƒRƒs[•s‰Â
+	// ï¿½Rï¿½sï¿½[ï¿½æ‚ªï¿½ï¿½ï¿½æ‘œï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÍƒRï¿½sï¿½[ï¿½sï¿½ï¿½
 	if( dw < (w-2) || dh < (h-2) ) return false;
 
 	if (!TVPGetRenderManager()->IsSoftware()) {
@@ -1247,7 +1248,7 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 
 		if( scale.bottom != -1 && margin.bottom != -1 ) break;
 	}
-	// ƒXƒP[ƒ‹—p‚Ì—Ìˆæ‚ªŒ©•t‚©‚ç‚È‚¢‚ÍƒRƒs[‚Å‚«‚È‚¢
+	// ï¿½Xï¿½Pï¿½[ï¿½ï¿½ï¿½pï¿½Ì—Ìˆæ‚ªï¿½ï¿½ï¿½tï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ÍƒRï¿½sï¿½[ï¿½Å‚ï¿½ï¿½È‚ï¿½
 	if( scale.left == -1 || scale.right == -1 || scale.top == -1 || scale.bottom == -1 )
 		return false;
 	
@@ -1267,7 +1268,7 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 	const tjs_uint32 *s2 = src + pitch + scale.right;
 	tjs_uint32 *d1 = dst;
 	tjs_uint32 *d2 = dst + src_left_width + dst_center_width;
-	// ã‘¤¶‰E’[‚ÌƒRƒs[
+	// ï¿½ã‘¤ï¿½ï¿½ï¿½Eï¿½[ï¿½ÌƒRï¿½sï¿½[
 	for( tjs_int y = 0; y < src_top_height; y++ )
 	{
 		memcpy( d1, s1, src_left_width*sizeof(tjs_uint32));
@@ -1275,11 +1276,11 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 		d1 += dpitch; s1 += pitch;
 		d2 += dpitch; s2 += pitch;
 	}
-	// ã‘¤’†ŠÔ
+	// ï¿½ã‘¤ï¿½ï¿½ï¿½ï¿½
 	const tjs_uint32 *s3 = src + pitch + scale.left;
 	tjs_uint32 *d3 = dst + src_left_width;
 	if( src_center_width == 1 )
-	{   // ƒRƒs[Œ³‚Ì•‚ª1‚Ì‚Í‚»‚ÌF‚Å“h‚è‚Â‚Ô‚·
+	{   // ï¿½Rï¿½sï¿½[ï¿½ï¿½ï¿½Ì•ï¿½ï¿½ï¿½1ï¿½Ìï¿½ï¿½Í‚ï¿½ï¿½ÌFï¿½Å“hï¿½ï¿½Â‚Ô‚ï¿½
 		for( tjs_int y = 0; y < src_top_height; y++ )
 		{
 			TVPFillARGB( d3, dst_center_width, *s3 );
@@ -1290,23 +1291,23 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 	else
 	{   // scale
 		for( tjs_int y = 0; y < src_top_height; y++ )
-		{   // c•ûŒü‚ÍƒuƒŒƒ“ƒh‚µ‚È‚¢‚Ì‚Å‚‘¬‰»o—ˆ‚é‚ªcc
+		{   // ï¿½cï¿½ï¿½ï¿½ï¿½ï¿½Íƒuï¿½ï¿½ï¿½ï¿½ï¿½hï¿½ï¿½ï¿½È‚ï¿½ï¿½Ì‚Åï¿½ï¿½ï¿½ï¿½ï¿½ï¿½oï¿½ï¿½ï¿½é‚ªï¿½cï¿½c
 			TVPInterpStretchCopy( d3, dst_center_width, s3, s3, 0, 0, src_center_step );
 			d3 += dpitch; s3 += pitch;
 		}
 	}
-	// ’†ŠÔˆÊ’u
-	// s1 s2 s3 d1 d2 d3 ‚ÍA’†ŠÔˆÊ’u‚ğw‚µ‚Ä‚¢‚é‚Í‚¸
+	// ï¿½ï¿½ï¿½ÔˆÊ’u
+	// s1 s2 s3 d1 d2 d3 ï¿½ÍAï¿½ï¿½ï¿½ÔˆÊ’uï¿½ï¿½ï¿½wï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Í‚ï¿½
 	if( src_center_height == 1 )
 	{
-		// ’†ŠÔˆÊ’u‚Ì—¼’[
+		// ï¿½ï¿½ï¿½ÔˆÊ’uï¿½Ì—ï¿½ï¿½[
 		for( tjs_int y = 0; y < dst_center_height; y ++ )
 		{
 			memcpy( d1, s1, src_left_width*sizeof(tjs_uint32));
 			memcpy( d2, s2, src_right_width*sizeof(tjs_uint32));
 			d1 += dpitch; d2 += dpitch;
 		}
-		// ’†ŠÔˆÊ’u‚Ì^‚ñ’†
+		// ï¿½ï¿½ï¿½ÔˆÊ’uï¿½Ì^ï¿½ï¿½
 		if( src_center_width == 1 )
 		{
 			for( tjs_int y = 0; y < dst_center_height; y ++ )
@@ -1327,24 +1328,24 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 	else
 	{
 		tTVPRect cliprect(0,0,dw,dh);
-		{		// ¶‘¤
+		{		// ï¿½ï¿½ï¿½ï¿½
 			tTVPRect srcrect( 1,        scale.top,     scale.left, scale.bottom );
 			tTVPRect dstrect( 0,   src_top_height, src_left_width,   (src_top_height+dst_center_height) );
 			TVPResampleImage( cliprect, this, dstrect, ref, srcrect, stSemiFastLinear, 0.0f, bmCopy, 255, false );
 		}
-		{		// ’†ŠÔ
+		{		// ï¿½ï¿½ï¿½ï¿½
 			tTVPRect srcrect(     scale.left,      scale.top,                     scale.right, scale.bottom );
 			tTVPRect dstrect( src_left_width, src_top_height, src_left_width+dst_center_width, src_top_height+dst_center_height );
 			TVPResampleImage( cliprect, this, dstrect, ref, srcrect, stSemiFastLinear, 0.0f, bmCopy, 255, false );   
 		}
-		{		// ‰E‘¤
+		{		// ï¿½Eï¿½ï¿½
 			tTVPRect srcrect(          scale.right,        scale.top, w-1, scale.bottom );
 			tTVPRect dstrect( dw - src_right_width,   src_top_height,  dw,   src_top_height+dst_center_height );
 			TVPResampleImage( cliprect, this, dstrect, ref, srcrect, stSemiFastLinear, 0.0f, bmCopy, 255, false );
 		}
 	}
 	
-	// ‰º‘¤¶‰E’[‚ÌƒRƒs[
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Eï¿½[ï¿½ÌƒRï¿½sï¿½[
 	s1 = src + pitch * scale.bottom + 1;
 	s2 = src + pitch * scale.bottom + scale.right;
 	d1 = dst + dpitch * (dh-src_bottom_height);
@@ -1356,11 +1357,11 @@ bool iTVPBaseBitmap::Copy9Patch( const iTVPBaseBitmap *ref, tTVPRect& margin )
 		d1 += dpitch; s1 += pitch;
 		d2 += dpitch; s2 += pitch;
 	}
-	// ‰º‘¤’†ŠÔ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	s3 = src + pitch * scale.bottom + scale.left;
 	d3 = dst + dpitch * (dh-src_bottom_height) + src_left_width;
 	if( src_center_width == 1 )
-	{   // ƒRƒs[Œ³‚Ì•‚ª1‚Ì‚Í‚»‚ÌF‚Å“h‚è‚Â‚Ô‚·
+	{   // ï¿½Rï¿½sï¿½[ï¿½ï¿½ï¿½Ì•ï¿½ï¿½ï¿½1ï¿½Ìï¿½ï¿½Í‚ï¿½ï¿½ÌFï¿½Å“hï¿½ï¿½Â‚Ô‚ï¿½
 		for( tjs_int y = 0; y < src_bottom_height; y++ )
 		{
 			TVPFillARGB( d3, dst_center_width, *s3 );
@@ -1464,6 +1465,16 @@ bool iTVPBaseBitmap::Blt(tjs_int x, tjs_int y, const iTVPBaseBitmap *ref,
 	iTVPRenderMethod *rmethod = mgr->GetRenderMethod(opa, hda, method);
 	if (!rmethod) return false;
 	iTVPTexture2D *reftex = GetTexture();
+	{
+		char logMsg[300];
+		snprintf(logMsg, sizeof(logMsg),
+			"[KK4V] Blt: dst=%dx%d rect=(%d,%d,%d,%d) ref=%dx%d refrect=(%d,%d,%d,%d) method=%d opa=%d hda=%d reftex=%p",
+			bmpw, bmph, rect.left, rect.top, rect.right, rect.bottom,
+			ref->GetWidth(), ref->GetHeight(),
+			refrect.left, refrect.top, refrect.right, refrect.bottom,
+			(int)method, opa, (int)hda, (void*)reftex);
+		KK4V_Log(logMsg);
+	}
 	mgr->OperateRect(rmethod, GetTextureForRender(rmethod->IsBlendTarget(), &rect), reftex,
 		rect, tRenderTexRectArray(src_tex));
 #if 0

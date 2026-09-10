@@ -15,6 +15,8 @@
 #include "stdarg.h"
 #include <wchar.h>
 
+#include "tjsTypes.h"
+
 namespace TJS
 {
 //---------------------------------------------------------------------------
@@ -31,8 +33,6 @@ namespace TJS
 */
 
 // TODO: autoconf integration
-
-#include "tjsTypes.h"
 
 
 // #define TJS_NO_AVOID_ISWDIGIT
@@ -83,6 +83,9 @@ extern tjs_int TJS_sprintf(tjs_char *s, const tjs_char *format, ...);
 #define TJS_strncpy_s(d, dl, s, sl)		TJS_strncpy(d, s, sl)
 #if defined(_MSC_VER)
 	#define TJS_cdecl __cdecl
+	#define TJS_timezone _timezone
+#elif defined(__vita__)
+	#define TJS_cdecl
 	#define TJS_timezone _timezone
 #else
 	#define TJS_cdecl

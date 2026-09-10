@@ -931,7 +931,7 @@ void TVPInitializeBaseSystems()
 // system initializer / uninitializer
 //---------------------------------------------------------------------------
 #if 0
-// ƒtƒHƒ‹ƒ_‘I‘ðƒ_ƒCƒAƒƒO‚ÌƒR[ƒ‹ƒoƒbƒNŠÖ”
+// ãƒ•ã‚©ãƒ«ãƒ€é¸æŠžãƒ€ã‚¤ã‚¢ãƒ­ã‚°ã®ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯é–¢æ•°
 static int CALLBACK TVPBrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData)
 {
     if(uMsg==BFFM_INITIALIZED){
@@ -956,10 +956,13 @@ void TVPBeforeSystemInit()
 	if (TVPGetCommandLine(TJS_W("-arcdelim"), &v))
 		TVPArchiveDelimiter = ttstr(v)[0];
 
-	if (TVPIsExistentStorageNoSearchNoNormalize(TVPProjectDir)) {
-		TVPProjectDir += TVPArchiveDelimiter;
-	} else {
-		TVPProjectDir += TJS_W("/");
+	tjs_char last_ch = TVPProjectDir.GetLastChar();
+	if (last_ch != TVPArchiveDelimiter && last_ch != TJS_W('/') && last_ch != TJS_W('\\')) {
+		if (TVPIsExistentStorageNoSearchNoNormalize(TVPProjectDir)) {
+			TVPProjectDir += TVPArchiveDelimiter;
+		} else {
+			TVPProjectDir += TJS_W("/");
+		}
 	}
 	TVPSetCurrentDirectory(TVPProjectDir);
 
@@ -1321,7 +1324,7 @@ void TVPAfterSystemInit()
 	{
 		TVPGraphicCacheSystemLimit = limitmb * 1024*1024;
 	}
-	// 32bit ‚È‚Ì‚Å 512MB ‚Ü‚Å‚É§ŒÀ
+	// 32bit ãªã®ã§ 512MB ã¾ã§ã«åˆ¶é™
 	if( TVPGraphicCacheSystemLimit >= 512*1024*1024 )
 		TVPGraphicCacheSystemLimit = 512*1024*1024;
 

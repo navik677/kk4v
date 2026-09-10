@@ -371,8 +371,8 @@ tjs_uint64 TJS_INTF_METHOD tTVPPartialStream::GetSize()
 
 
 extern "C" {
-#include "libarchive/archive.h"
-#include "libarchive/archive_entry.h"
+#include <archive.h>
+#include <archive_entry.h>
 }
 #if 0
 class LibArchive_Archive : public tTVPArchive {
@@ -759,15 +759,16 @@ const char * tTVPUnpackArchiveImplLibArchive::_onPassphraseCallback(struct archi
 	return psw.c_str();
 }
 
-extern "C" {
-#include "7zip/C/7z.h"
-#include "7zip/C/7zFile.h"
-#include "7zip/C/7zCrc.h"
-}
+// extern "C" {
+// #include "7zip/C/7z.h"
+// #include "7zip/C/7zFile.h"
+// #include "7zip/C/7zCrc.h"
+// }
 #include <fcntl.h>
 #include <unistd.h>
 #include "win32io.h"
 
+#if 0
 static ISzAlloc allocImp = {
 	[](void *p, size_t size) -> void * { return malloc(size); },
 	[](void *p, void *addr) { free(addr); }
@@ -832,9 +833,11 @@ public:
 		return true;
 	}
 };
+#endif
 
-#include "unrar/raros.hpp"
-#include "unrar/dll.hpp"
+// #include "unrar/raros.hpp"
+// #include "unrar/dll.hpp"
+#if 0
 class tTVPUnpackArchiveImplUnRAR : public iTVPUnpackArchiveImpl {
 	std::string _archivePath;
 	tjs_int _filecount;
@@ -978,6 +981,7 @@ public:
 		_callbacks->FuncOnEnded();
 	}
 };
+#endif
 
 int tTVPUnpackArchive::Prepare(const std::string &path, const std::string &_outpath, tjs_uint64 *totalSize) {
 	FILE *FpIn = fopen(path.c_str(), "rb");
@@ -990,7 +994,8 @@ int tTVPUnpackArchive::Prepare(const std::string &path, const std::string &_outp
 	OutPath = _outpath + "/";
 	fclose(FpIn);
 	if (!memcmp(signature, "Rar!", 4)) {
-		_impl = new tTVPUnpackArchiveImplUnRAR();
+		// _impl = new tTVPUnpackArchiveImplUnRAR();
+		_impl = new tTVPUnpackArchiveImplLibArchive();
 	} else if (!memcmp(signature, "PK", 2)) {
 		_impl = new tTVPUnpackArchiveImplLibArchive();
 	} else if (!memcmp(signature, "7z", 2)) {

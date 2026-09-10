@@ -48,6 +48,36 @@ int utf8_mbtowc(unsigned short *pwc, const unsigned char *s) {
 		return -1;
 }
 
+static const unsigned short cp1251_table[128] = {
+    0x0402, 0x0403, 0x201A, 0x0453, 0x201E, 0x2026, 0x2020, 0x2021,
+    0x20AC, 0x2030, 0x0409, 0x2039, 0x040A, 0x040C, 0x040B, 0x040F,
+    0x0452, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+    0x003F, 0x2122, 0x0459, 0x203A, 0x045A, 0x045C, 0x045B, 0x045F,
+    0x00A0, 0x040E, 0x045E, 0x0408, 0x00A4, 0x0490, 0x00A6, 0x00A7,
+    0x0401, 0x00A9, 0x0404, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x0407,
+    0x00B0, 0x00B1, 0x0406, 0x0456, 0x0491, 0x00B5, 0x00B6, 0x00B7,
+    0x0451, 0x2116, 0x0454, 0x00BB, 0x0458, 0x0405, 0x0455, 0x0457,
+    0x0410, 0x0411, 0x0412, 0x0413, 0x0414, 0x0415, 0x0416, 0x0417,
+    0x0418, 0x0419, 0x041A, 0x041B, 0x041C, 0x041D, 0x041E, 0x041F,
+    0x0420, 0x0421, 0x0422, 0x0423, 0x0424, 0x0425, 0x0426, 0x0427,
+    0x0428, 0x0429, 0x042A, 0x042B, 0x042C, 0x042D, 0x042E, 0x042F,
+    0x0430, 0x0431, 0x0432, 0x0433, 0x0434, 0x0435, 0x0436, 0x0437,
+    0x0438, 0x0439, 0x043A, 0x043B, 0x043C, 0x043D, 0x043E, 0x043F,
+    0x0440, 0x0441, 0x0442, 0x0443, 0x0444, 0x0445, 0x0446, 0x0447,
+    0x0448, 0x0449, 0x044A, 0x044B, 0x044C, 0x044D, 0x044E, 0x044F
+};
+
+int cp1251_mbtowc(unsigned short *wc, const unsigned char *s) {
+	if (!s || !*s) return 0;
+	unsigned char c = *s;
+	if (c < 0x80) {
+		*wc = c;
+	} else {
+		*wc = cp1251_table[c - 0x80];
+	}
+	return 1;
+}
+
 int(*mbtowc_for_text_stream)(unsigned short *wc, const unsigned char *s) = nullptr;
 
 static size_t _TextStream_mbstowcs(int(*func_mbtowc)(unsigned short *, const unsigned char *), tjs_char *pwcs, const tjs_nchar *s, size_t n)
@@ -108,7 +138,8 @@ extern size_t TextStream_mbstowcs(tjs_char *pwcs, const tjs_nchar *s, size_t n) 
 
 static ttstr enc_utf8 = TJS_W("utf8"), enc_utf8_2 = TJS_W("utf-8"), enc_utf16 = TJS_W("utf16"),
 	enc_utf16_2 = TJS_W("utf-16"), enc_gbk = TJS_W("gbk"), enc_jis = TJS_W("sjis"),
-	enc_jis_2 = TJS_W("shiftjis"), enc_jis_3 = TJS_W("shift_jis"), enc_jis_4 = TJS_W("shift-jis");
+	enc_jis_2 = TJS_W("shiftjis"), enc_jis_3 = TJS_W("shift_jis"), enc_jis_4 = TJS_W("shift-jis"),
+	enc_cp1251 = TJS_W("cp1251"), enc_cp1251_2 = TJS_W("windows-1251"), enc_cp1251_3 = TJS_W("1251"), enc_cp1251_4 = TJS_W("cp-1251");
 bool TVPStringDecode(const void *p, int len, ttstr& result, ttstr encoding /*= "utf8"*/) {
 	if (encoding == enc_utf8 || encoding == enc_utf8_2) {
 		int n = (int)TJS_mbstowcs(NULL, (char*)p, len);
@@ -125,6 +156,10 @@ bool TVPStringDecode(const void *p, int len, ttstr& result, ttstr encoding /*= "
 		int n = _TextStream_mbstowcs(gbk_mbtowc, NULL, (char*)p, len);
 		if (n == -1) return false;
 		_TextStream_mbstowcs(gbk_mbtowc, result.AllocBuffer(n), (char*)p, len);
+	} else if (encoding == enc_cp1251 || encoding == enc_cp1251_2 || encoding == enc_cp1251_3 || encoding == enc_cp1251_4) {
+		int n = _TextStream_mbstowcs(cp1251_mbtowc, NULL, (char*)p, len);
+		if (n == -1) return false;
+		_TextStream_mbstowcs(cp1251_mbtowc, result.AllocBuffer(n), (char*)p, len);
 	} else {
 		return false;
 	}
@@ -138,6 +173,23 @@ bool TVPStringEncode(const ttstr &src, std::string &result, ttstr encoding /*= "
 	} else if (encoding == enc_utf16 || encoding == enc_utf16_2) {
 		result.resize(src.length() * 2);
 		memcpy((char*)result.c_str(), src.c_str(), src.length() * 2);
+	} else if (encoding == enc_cp1251 || encoding == enc_cp1251_2 || encoding == enc_cp1251_3 || encoding == enc_cp1251_4) {
+		result.resize(src.length());
+		for (size_t i = 0; i < src.length(); ++i) {
+			tjs_char ch = src.c_str()[i];
+			if (ch < 0x80) {
+				result[i] = (char)ch;
+			} else {
+				char found = '?';
+				for (int j = 0; j < 128; ++j) {
+					if (cp1251_table[j] == ch) {
+						found = (char)(0x80 + j);
+						break;
+					}
+				}
+				result[i] = found;
+			}
+		}
 // 	} else if (encoding == enc_jis || encoding == enc_jis_2 || encoding == enc_jis_3 || encoding == enc_jis_4) {
 // 	} else if (encoding == enc_gbk) { // unsupported yet
 	} else {
@@ -781,6 +833,8 @@ void TVPSetDefaultReadEncoding(const ttstr& encoding)
 		mbtowc_for_text_stream = utf8_mbtowc;
 	} else if (codestr == enc_jis || codestr == enc_jis_2 || codestr == enc_jis_3 || codestr == enc_jis_4) {
 		mbtowc_for_text_stream = sjis_mbtowc;
+	} else if (codestr == enc_cp1251 || codestr == enc_cp1251_2 || codestr == enc_cp1251_3 || codestr == enc_cp1251_4) {
+		mbtowc_for_text_stream = cp1251_mbtowc;
 	} else {
 		TVPThrowExceptionMessage(TVPUnsupportedEncoding, encoding);
 	}

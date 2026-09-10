@@ -13,6 +13,7 @@
 #include "UtilStreams.h"
 #include "BitmapBitsAlloc.h"
 #include "LayerIntf.h"
+#include "DebugIntf.h"
 
 tTVPTmpBitmapImage::tTVPTmpBitmapImage()
 	: MetaInfo(NULL)
@@ -70,7 +71,7 @@ static void* TVPLoadGraphicAsync_ScanLineCallback(void *callbackdata, tjs_int y)
 			return NULL;
 		}
 	}
-	return NULL; // -1 ‚Ì‚Ìƒtƒ‰ƒbƒVƒ…ˆ—‚Í‰½‚à‚µ‚È‚¢
+	return NULL; // -1 ï¿½Ìï¿½ï¿½Ìƒtï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½
 }
 //---------------------------------------------------------------------------
 static void TVPLoadGraphicAsync_MetaInfoPushCallback(void *callbackdata, const ttstr & name, const ttstr & value)
@@ -107,9 +108,22 @@ void tTVPAsyncImageLoader::ExitRequest() {
 	PushCommandQueueEvent.Set();
 }
 void tTVPAsyncImageLoader::Execute() {
-	// ƒvƒ‰ƒCƒIƒŠƒeƒB‚ÍÅ’á‚É‚·‚é
+	// ï¿½vï¿½ï¿½ï¿½Cï¿½Iï¿½ï¿½ï¿½eï¿½Bï¿½ÍÅ’ï¿½É‚ï¿½ï¿½ï¿½
+#if defined(__vita__)
+	// ttpIdle -> SCHED_IDLE. On the Vita's pthread port this thread can end up
+	// never getting scheduled while the (busy, never-blocking) main render loop
+	// is running, which silently stalls every image load forever with no crash.
+	// ttpLower (SCHED_BATCH) still yields to the main thread but is not starved
+	// by a strict idle policy. If loads are confirmed to progress with this,
+	// the real fix is on the main-loop side (it should block/yield properly)
+	// rather than keeping this raised permanently.
+	SetPriority(ttpLower);
+#else
 	SetPriority(ttpIdle);
+#endif
+	TVPAddImportantLog(TJS_W("(kk4v) image load thread: entering LoadingThread()"));
 	LoadingThread();
+	TVPAddImportantLog(TJS_W("(kk4v) image load thread: LoadingThread() exited"));
 }
 void tTVPAsyncImageLoader::SendToLoadFinish() {
 	NativeEvent ev(TVP_EV_IMAGE_LOAD_THREAD);
@@ -158,7 +172,7 @@ void tTVPAsyncImageLoader::HandleLoadedImage() {
 				iTJSDispatch2* metainfo = TVPMetaInfoPairsToDictionary(cmd->dest_->MetaInfo);
 
 				cmd->bmp_->SetSizeAndImageBuffer(cmd->dest_->bmp);
-				// “Ç‚İŠ®—¹‚É‚àƒLƒƒƒbƒVƒ…ƒ`ƒFƒbƒN(”ñ“¯Šú‚È‚Ì‚ÅŠ®—¹‘O‚É“Ç‚İ‚Ü‚ê‚Ä‚¢‚é‰Â”\«‚ ‚è)
+				// ï¿½Çï¿½ï¿½İŠï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É‚ï¿½ï¿½Lï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½`ï¿½Fï¿½bï¿½N(ï¿½ñ“¯Šï¿½ï¿½È‚Ì‚ÅŠï¿½ï¿½ï¿½ï¿½Oï¿½É“Ç‚İï¿½ï¿½Ü‚ï¿½Ä‚ï¿½ï¿½ï¿½Â”\ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
 				if( TVPHasImageCache( cmd->path_, glmNormal, 0, 0, TVP_clNone ) == false ) {
 					TVPPushGraphicCache( cmd->path_, cmd->dest_->bmp, cmd->dest_->MetaInfo );
 					cmd->dest_->MetaInfo = NULL;
@@ -186,7 +200,7 @@ void tTVPAsyncImageLoader::HandleLoadedImage() {
 }
 //---------------------------------------------------------------------------
 
-// onLoaded( dic, is_async, is_error, error_mes ); ƒGƒ‰[‚Í
+// onLoaded( dic, is_async, is_error, error_mes ); ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½
 // sync ( main thead )
 void tTVPAsyncImageLoader::LoadRequest( iTJSDispatch2 *owner, tTJSNI_Bitmap* bmp, const ttstr &name ) {
 	//tTVPBaseBitmap* dest = new tTVPBaseBitmap( 32, 32, 32 );
@@ -194,7 +208,7 @@ void tTVPAsyncImageLoader::LoadRequest( iTJSDispatch2 *owner, tTJSNI_Bitmap* bmp
 	iTJSDispatch2* metainfo = NULL;
 	ttstr nname = TVPNormalizeStorageName(name);
 	if( TVPCheckImageCache(nname,&dest,glmNormal,0,0,TVP_clNone,&metainfo) ) {
-		// ƒLƒƒƒbƒVƒ…“à‚É”­Œ©A‘¦À‚É“Ç‚İ‚ğŠ®—¹‚·‚é
+		// ï¿½Lï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½É”ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½É“Çï¿½ï¿½İ‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		if (bmp) {
 			bmp->CopyFrom(&dest);
 			bmp->SetLoading(false);
@@ -223,9 +237,14 @@ void tTVPAsyncImageLoader::LoadRequest( iTJSDispatch2 *owner, tTJSNI_Bitmap* bmp
 
 // tTJSCriticalSectionHolder cs_holder(TVPCreateStreamCS);
 //	tTJSBinaryStream* stream = TVPCreateStream(nname, TJS_BS_READ);
-// TVPCreateStream ‚ÍƒƒbƒN‚³‚ê‚Ä‚¢‚é‚Ì‚ÅA”ñ“¯Šú‚ÅÀs‰Â”\
+// TVPCreateStream ï¿½Íƒï¿½ï¿½bï¿½Nï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½Ì‚ÅAï¿½ñ“¯Šï¿½ï¿½Åï¿½ï¿½sï¿½Â”\
 
 void tTVPAsyncImageLoader::PushLoadQueue( iTJSDispatch2 *owner, tTJSNI_Bitmap *bmp, const ttstr &nname ) {
+	static bool loggedFirstPush = false; // main thread only, see LoadingThread() for the pickup side
+	if( !loggedFirstPush ) {
+		loggedFirstPush = true;
+		TVPAddImportantLog(TJS_W("(kk4v) image load thread: first request queued - ") + nname);
+	}
 	tTVPImageLoadCommand* cmd = new tTVPImageLoadCommand();
 	cmd->owner_ = owner;
 	if (owner) owner->AddRef();
@@ -234,16 +253,22 @@ void tTVPAsyncImageLoader::PushLoadQueue( iTJSDispatch2 *owner, tTJSNI_Bitmap *b
 	cmd->dest_ = new tTVPTmpBitmapImage();
 	cmd->result_.Clear();
 	{
-		// ƒLƒ…[‚ğƒƒbƒN‚µ‚ÄƒvƒbƒVƒ…
+		// ï¿½Lï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½bï¿½Nï¿½ï¿½ï¿½Äƒvï¿½bï¿½Vï¿½ï¿½
 		tTJSCriticalSectionHolder cs(CommandQueueCS);
 		CommandQueue.push(cmd);
 	}
-	// ’Ç‰Á‚µ‚½‚±‚Æ‚ğƒCƒxƒ“ƒg‚Å’Ê’m
+	// ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½Cï¿½xï¿½ï¿½ï¿½gï¿½Å’Ê’m
 	PushCommandQueueEvent.Set();
 }
 void tTVPAsyncImageLoader::LoadingThread() {
+	// Cross-thread TVPAddImportantLog() calls below are for one-off diagnosis
+	// of a suspected startup hang and are NOT thread-safe against the main
+	// thread's own logging (TVPAddLog touches shared statics without a lock).
+	// Kept to a single call so as not to widen that race window; remove once
+	// the hang is diagnosed.
+	static bool loggedFirstPickup = false;
 	while( !GetTerminated() ) {
-		// ƒLƒ…[’Ç‰ÁƒCƒxƒ“ƒg‘Ò‚¿
+		// ï¿½Lï¿½ï¿½ï¿½[ï¿½Ç‰ï¿½ï¿½Cï¿½xï¿½ï¿½ï¿½gï¿½Ò‚ï¿½
 		PushCommandQueueEvent.WaitFor(0);
 		if( GetTerminated() ) break;
 		bool loading;
@@ -260,6 +285,10 @@ void tTVPAsyncImageLoader::LoadingThread() {
 			}
 			if( cmd ) {
 				loading = true;
+				if( !loggedFirstPickup ) {
+					loggedFirstPickup = true;
+					TVPAddImportantLog(TJS_W("(kk4v) image load thread: picked up first command - ") + cmd->path_);
+				}
 				LoadImageFromCommand(cmd);
 				{	// Lock
 					tTJSCriticalSectionHolder cs(ImageQueueCS);
@@ -290,7 +319,7 @@ void tTVPAsyncImageLoader::LoadImageFromCommand( tTVPImageLoadCommand* cmd ) {
 				TVPLoadGraphicAsync_ScanLineCallback, TVPLoadGraphicAsync_MetaInfoPushCallback,
 				holder.Get(), -1, glmNormal );
 		} catch(...) {
-			// —áŠO‚Í‘S‚ÄƒLƒƒƒbƒ`
+			// ï¿½ï¿½Oï¿½Í‘Sï¿½ÄƒLï¿½ï¿½ï¿½bï¿½`
 			cmd->result_ = TVPFormatMessage(TVPImageLoadError, cmd->path_);
 		}
 	} else {

@@ -11,6 +11,7 @@
 
 #include "KAGParser.h"
 #include "EventIntf.h"
+#include "vita_klog.h"
 namespace TJS { ttstr TJSMapGlobalStringMap(const ttstr & string); }
 
 //---------------------------------------------------------------------------
@@ -1573,6 +1574,14 @@ parse_start:
 		ttstr tagname(tagnamestart, CurLineStr + CurPos - tagnamestart);
 		tagname.ToLowerCase();
 		{
+			std::string narrowStorage = StorageName.AsNarrowStdString();
+			std::string narrowTag = tagname.AsNarrowStdString();
+			char logMsg[280];
+			snprintf(logMsg, sizeof(logMsg), "[KK4V] KAGTag: %s(%d) @%s",
+				narrowStorage.c_str(), (int)CurLine, narrowTag.c_str());
+			KK4V_Log(logMsg);
+		}
+		{
 
 			tTJSVariant tag_val(tagname);
 			DicObj->PropSetByVS(TJS_MEMBERENSURE,
@@ -1743,7 +1752,19 @@ parse_start:
 						exp = val;
 						if(exp == TJS_W(""))
 							TVPThrowExceptionMessage(TVPKAGSyntaxError);
-						TVPExecuteExpression(exp, Owner, &val);
+						try
+						{
+							TVPExecuteExpression(exp, Owner, &val);
+						}
+						catch(...)
+						{
+							// A failed cond/exp evaluation (e.g. a referenced
+							// variable that fell out of scope) must not kill
+							// the whole scenario thread; treat it as false,
+							// same as an ordinary falsy result.
+							KK4V_Log("[KK4V] KAGParser: cond eval threw, treating as false");
+							val = tTJSVariant((tjs_int)0);
+						}
 
 						bool cond = val.operator bool();
 						if(tagkind == tag_ignore) cond = ! cond;
@@ -1776,7 +1797,15 @@ parse_start:
 						//const std::string s = exp.AsStdString();
 						if(exp == TJS_W(""))
 							TVPThrowExceptionMessage(TVPKAGSyntaxError);
-						TVPExecuteExpression(exp, Owner, &val);
+						try
+						{
+							TVPExecuteExpression(exp, Owner, &val);
+						}
+						catch(...)
+						{
+							KK4V_Log("[KK4V] KAGParser: elsif cond eval threw, treating as false");
+							val = tTJSVariant((tjs_int)0);
+						}
 
 						bool cond = val.operator bool();
 						if(cond)
@@ -2237,7 +2266,19 @@ parse_start:
 					// condition
 
 					tTJSVariant val;
-					TVPExecuteExpression(ttstr(ValueVariant), Owner, &val);
+					try
+					{
+						TVPExecuteExpression(ttstr(ValueVariant), Owner, &val);
+					}
+					catch(...)
+					{
+						// Same rationale as the @if/@elsif handling above:
+						// a variable that isn't visible in this eval context
+						// (e.g. a local "skip" flag from an @eval tag) must
+						// not abort tag processing for the whole scenario.
+						KK4V_Log("[KK4V] KAGParser: tag cond eval threw, treating as false");
+						val = tTJSVariant((tjs_int)0);
+					}
 					condition = val.operator bool();
 					store = false;
 				}

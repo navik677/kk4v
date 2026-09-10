@@ -18,8 +18,7 @@
 #include "SysInitIntf.h"
 #include "ScriptMgnIntf.h"
 #include "tvpgl.h"
-#include "Protect.h"
-
+// #include "Protect.h"
 
 //---------------------------------------------------------------------------
 // global data
@@ -38,7 +37,7 @@ void TVPSystemInit(void)
 {
 #if CC_TARGET_PLATFORM != CC_PLATFORM_WIN32
 #ifndef CC_TARGET_OS_IPHONE
-	if (!TVPProtectInit()) return;
+	// if (!TVPProtectInit()) return;
 #endif
 //#else
 #ifdef USING_PROTECT
