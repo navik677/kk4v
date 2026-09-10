@@ -35,11 +35,6 @@ tjs_error TJS_INTF_METHOD tTJSNI_Bitmap::Construct(tjs_int numparams, tTJSVarian
 			if( numparams > 2 ) {
 				bpp = (tjs_int)*param[2];
 			}
-			{
-				char logMsg[120];
-				snprintf(logMsg, sizeof(logMsg), "[KK4V] Bitmap::Construct: w=%u h=%u bpp=%u", width, height, bpp);
-				KK4V_Log(logMsg);
-			}
 			Bitmap = new tTVPBaseBitmap( width, height, bpp );
 		}
 	} else {
@@ -113,11 +108,6 @@ void tTJSNI_Bitmap::Save(const ttstr &name, const ttstr &type, iTJSDispatch2* me
 }
 //----------------------------------------------------------------------
 void tTJSNI_Bitmap::SetSize(tjs_uint width, tjs_uint height, bool keepimage) {
-	{
-		char logMsg[120];
-		snprintf(logMsg, sizeof(logMsg), "[KK4V] Bitmap::SetSize: w=%u h=%u keepimage=%d", width, height, (int)keepimage);
-		KK4V_Log(logMsg);
-	}
 	if(!Bitmap) TVPThrowExceptionMessage(TVPNotDrawableLayerType);
 
 	if(width == Bitmap->GetWidth() && height == Bitmap->GetHeight()) return;

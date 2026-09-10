@@ -14,16 +14,6 @@
 #include <cstdlib>
 #include "vita_klog.h"
 
-// Recognized by vita-elf-create at build time (read from this ELF's data
-// section, not referenced at runtime) to size the main thread's stack in
-// the packaged module's metadata. The toolchain default is small (a few
-// hundred KB) and KiriKiri's recursive layer compositing plus nested
-// native<->TJS callback chains (e.g. a single button click synchronously
-// walking many child layers) can plausibly overrun that during a scene
-// transition, which would explain crashes that land in a different,
-// seemingly unrelated function each time.
-extern "C" unsigned int sceUserMainThreadStackSize = 4 * 1024 * 1024;
-
 static bool g_LogOk = false;
 static unsigned int g_RawButtons = 0; // live SceCtrl button bitmask, for on-screen input debugging
 
@@ -660,9 +650,7 @@ int main(int argc, char *argv[]) {
         sceCtrlPeekBufferPositive(0, &pad, 1);
         unsigned int pressed = pad.buttons & ~oldPad.buttons;
         unsigned int released = oldPad.buttons & ~pad.buttons;
-        static int s_traceRunFrames = 0;
         if (pressed || released) {
-            s_traceRunFrames = 120; // trace Run() calls for a couple seconds after any button event
             tTJSNI_Window* win = TVPGetActiveWindow();
             for (const auto &bm : kButtonMap) {
                 if (pressed & bm.mask) {
@@ -670,34 +658,21 @@ int main(int argc, char *argv[]) {
                     snprintf(logMsg, sizeof(logMsg), "[KK4V] pad DOWN: %s (buttons=%08x)", bm.name, pad.buttons);
                     KK4V_Log(logMsg);
                     if (win) {
-                        KK4V_Log("[KK4V] -> OnKeyDown");
                         win->OnKeyDown(bm.vk, 0);
-                        KK4V_Log("[KK4V] <- OnKeyDown ok");
-                        if (bm.ch) {
-                            KK4V_Log("[KK4V] -> OnKeyPress");
-                            win->OnKeyPress(bm.ch);
-                            KK4V_Log("[KK4V] <- OnKeyPress ok");
-                        }
+                        if (bm.ch) win->OnKeyPress(bm.ch);
                     }
                 }
                 if (released & bm.mask) {
                     char logMsg[64];
                     snprintf(logMsg, sizeof(logMsg), "[KK4V] pad UP: %s", bm.name);
                     KK4V_Log(logMsg);
-                    if (win) {
-                        KK4V_Log("[KK4V] -> OnKeyUp");
-                        win->OnKeyUp(bm.vk, 0);
-                        KK4V_Log("[KK4V] <- OnKeyUp ok");
-                    }
+                    if (win) win->OnKeyUp(bm.vk, 0);
                 }
             }
         }
         oldPad = pad;
-        bool traceThisRun = s_traceRunFrames > 0;
-        if (traceThisRun) { s_traceRunFrames--; KK4V_Log("[KK4V] -> Application->Run()"); }
         try {
             Application->Run();
-            if (traceThisRun) KK4V_Log("[KK4V] <- Application->Run() ok");
         } catch (const std::exception &e) {
             char msg[300];
             snprintf(msg, sizeof(msg), "[KK4V] Application->Run() threw std::exception: %s", e.what());

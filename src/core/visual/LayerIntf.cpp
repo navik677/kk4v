@@ -1035,14 +1035,6 @@ void tTJSNI_BaseLayer::SetVisible(bool st)
 {
 	if(Visible != st)
 	{
-		std::string narrowName = Name.AsNarrowStdString();
-		char logMsg[200];
-		snprintf(logMsg, sizeof(logMsg), "[KK4V] SetVisible: layer=\"%s\" %d -> %d (opacity=%d)",
-			narrowName.c_str(), (int)Visible, (int)st, Opacity);
-		KK4V_Log(logMsg);
-	}
-	if(Visible != st)
-	{
 		if(IsPrimary() && !st)
 			TVPThrowExceptionMessage(TVPCannotSetPrimaryInvisible);
 		if(!st) Update();
@@ -1062,13 +1054,6 @@ void tTJSNI_BaseLayer::SetVisible(bool st)
 //---------------------------------------------------------------------------
 void tTJSNI_BaseLayer::SetOpacity(tjs_int opa)
 {
-	if (Opacity != opa) {
-		std::string narrowName = Name.AsNarrowStdString();
-		char logMsg[200];
-		snprintf(logMsg, sizeof(logMsg), "[KK4V] SetOpacity: layer=\"%s\" %d -> %d (visible=%d)",
-			narrowName.c_str(), Opacity, opa, (int)Visible);
-		KK4V_Log(logMsg);
-	}
 	if(Opacity != opa)
 	{
 		if(IsPrimary() && opa!=255)
@@ -1900,13 +1885,6 @@ void tTJSNI_BaseLayer::InternalSetSize(tjs_uint width, tjs_uint height)
 	if(Rect.get_width() != (tjs_int)width ||
 		Rect.get_height() != (tjs_int)height)
 	{
-		{
-			std::string narrowName = Name.AsNarrowStdString();
-			char logMsg[220];
-			snprintf(logMsg, sizeof(logMsg), "[KK4V] Layer::InternalSetSize: layer=\"%s\" %dx%d -> %ux%u",
-				narrowName.c_str(), Rect.get_width(), Rect.get_height(), width, height);
-			KK4V_Log(logMsg);
-		}
 		Update(false);
 		Rect.set_width(width);
 		Rect.set_height(height);
@@ -2564,23 +2542,6 @@ iTJSDispatch2 * tTJSNI_BaseLayer::LoadImages(const ttstr &name, tjs_uint32 color
 	iTJSDispatch2 * metainfo = NULL;
 
 	TVPLoadGraphic(MainImage, name, colorkey, 0, 0, glmNormal, &provincename, &metainfo);
-	{
-		std::string narrowName = name.AsNarrowStdString();
-		tjs_uint w = MainImage->GetWidth(), h = MainImage->GetHeight();
-		char logMsg[400];
-		if (w > 0 && h > 0) {
-			tjs_uint32 p00 = MainImage->GetPoint(0, 0);
-			tjs_uint32 pmid = MainImage->GetPoint((tjs_int)(w/2), (tjs_int)(h/2));
-			snprintf(logMsg, sizeof(logMsg),
-				"[KK4V] LoadImages: %s -> %ux%u pt(0,0)=%08x pt(mid)=%08x",
-				narrowName.c_str(), w, h, p00, pmid);
-		} else {
-			snprintf(logMsg, sizeof(logMsg),
-				"[KK4V] LoadImages: %s -> %ux%u (zero size)",
-				narrowName.c_str(), w, h);
-		}
-		KK4V_Log(logMsg);
-	}
 	try
 	{
 

@@ -219,15 +219,8 @@ bool TVP_stat(const char *name, tTVP_stat &s) {
         if (vita_stat_single(alt.c_str(), s)) {
             return true;
         }
-        char logMsg[500];
-        snprintf(logMsg, sizeof(logMsg), "[KK4V] TVP_stat MISS: raw=\"%s\" clean=\"%s\" alt=\"%s\"",
-                 name, cleanName.c_str(), alt.c_str());
-        KK4V_Log(logMsg);
         return false;
     }
-    char logMsg[500];
-    snprintf(logMsg, sizeof(logMsg), "[KK4V] TVP_stat MISS: raw=\"%s\" clean=\"%s\" (no colon)", name, cleanName.c_str());
-    KK4V_Log(logMsg);
     return false;
 }
 
@@ -355,22 +348,6 @@ public:
     virtual void SetZoom(tjs_int numer, tjs_int denom) override {}
 
     virtual void UpdateDrawBuffer(iTVPTexture2D *tex) override {
-        static int s_callCount = 0;
-        if (s_callCount < 10 || (s_callCount % 60) == 0) {
-            char logMsg[260];
-            uint32_t p00 = 0, pmid = 0;
-            if (tex) {
-                tjs_uint w = tex->GetWidth(), h = tex->GetHeight();
-                p00 = tex->GetPoint(0, 0);
-                if (w && h) pmid = tex->GetPoint((int)(w/2), (int)(h/2));
-            }
-            snprintf(logMsg, sizeof(logMsg), "[KK4V] UpdateDrawBuffer call #%d: tex=%p renderer=%p w=%u h=%u pixels=%p pt00=%08x ptmid=%08x",
-                s_callCount, (void*)tex, (void*)s_SDLRenderer,
-                tex ? tex->GetWidth() : 0, tex ? tex->GetHeight() : 0,
-                tex ? tex->GetPixelData() : nullptr, p00, pmid);
-            KK4V_Log(logMsg);
-        }
-        s_callCount++;
         if (!tex || !s_SDLRenderer) return;
         tjs_uint w = tex->GetWidth();
         tjs_uint h = tex->GetHeight();
@@ -409,13 +386,6 @@ public:
     virtual void SetImeMode(tTVPImeMode mode) override {}
     virtual void ResetImeMode() override {}
     virtual void UpdateWindow(tTVPUpdateType type) override {
-        static int s_callCount = 0;
-        if (s_callCount < 10) {
-            char logMsg[100];
-            snprintf(logMsg, sizeof(logMsg), "[KK4V] UpdateWindow call #%d: type=%d", s_callCount, (int)type);
-            KK4V_Log(logMsg);
-            s_callCount++;
-        }
         if (s_SDLRenderer) SDL_RenderPresent(s_SDLRenderer);
     }
     virtual void SetVisibleFromScript(bool b) override { m_Visible = b; }

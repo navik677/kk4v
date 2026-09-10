@@ -1465,16 +1465,6 @@ bool iTVPBaseBitmap::Blt(tjs_int x, tjs_int y, const iTVPBaseBitmap *ref,
 	iTVPRenderMethod *rmethod = mgr->GetRenderMethod(opa, hda, method);
 	if (!rmethod) return false;
 	iTVPTexture2D *reftex = GetTexture();
-	{
-		char logMsg[300];
-		snprintf(logMsg, sizeof(logMsg),
-			"[KK4V] Blt: dst=%dx%d rect=(%d,%d,%d,%d) ref=%dx%d refrect=(%d,%d,%d,%d) method=%d opa=%d hda=%d reftex=%p",
-			bmpw, bmph, rect.left, rect.top, rect.right, rect.bottom,
-			ref->GetWidth(), ref->GetHeight(),
-			refrect.left, refrect.top, refrect.right, refrect.bottom,
-			(int)method, opa, (int)hda, (void*)reftex);
-		KK4V_Log(logMsg);
-	}
 	mgr->OperateRect(rmethod, GetTextureForRender(rmethod->IsBlendTarget(), &rect), reftex,
 		rect, tRenderTexRectArray(src_tex));
 #if 0

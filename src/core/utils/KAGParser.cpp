@@ -1574,14 +1574,6 @@ parse_start:
 		ttstr tagname(tagnamestart, CurLineStr + CurPos - tagnamestart);
 		tagname.ToLowerCase();
 		{
-			std::string narrowStorage = StorageName.AsNarrowStdString();
-			std::string narrowTag = tagname.AsNarrowStdString();
-			char logMsg[280];
-			snprintf(logMsg, sizeof(logMsg), "[KK4V] KAGTag: %s(%d) @%s",
-				narrowStorage.c_str(), (int)CurLine, narrowTag.c_str());
-			KK4V_Log(logMsg);
-		}
-		{
 
 			tTJSVariant tag_val(tagname);
 			DicObj->PropSetByVS(TJS_MEMBERENSURE,
