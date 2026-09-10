@@ -91,9 +91,7 @@ void tTVPTimerImpl::FireNext() {
 	if (!p) return;
 	Next = nullptr;
 
-	KK4V_Log("[KK4V] Timer >");
 	p->pTimer->FireEvent();
-	KK4V_Log("[KK4V] Timer <");
 	p->FireNext();
 	_processedTimer.Add(p);
 // 	int interval = p->pTimer->GetInterval();
