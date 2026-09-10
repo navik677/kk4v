@@ -432,7 +432,7 @@ static CVitaWindowLayer* s_CurrentWindowLayer = nullptr;
 
 iWindowLayer *TVPCreateAndAddWindow(tTJSNI_Window *w) {
     if (!s_SDLWindow) {
-        s_SDLWindow = SDL_CreateWindow("Kirikiroid2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 960, 544, SDL_WINDOW_SHOWN);
+        s_SDLWindow = SDL_CreateWindow("KK4V", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 960, 544, SDL_WINDOW_SHOWN);
         s_SDLRenderer = SDL_CreateRenderer(s_SDLWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     }
     s_CurrentWindowLayer = new CVitaWindowLayer(w);

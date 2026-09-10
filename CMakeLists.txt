@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(Kirikiroid2_Vita)
+project(KK4V)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -106,8 +106,8 @@ target_link_libraries(extension base)
 
 target_link_libraries(base tjs2 utils msg z archive bz2 zstd)
 
-add_executable(kirikiroid2 src/main.cpp src/vita_backend.cpp src/vita_klog.cpp src/vita_movie.cpp)
-target_link_libraries(kirikiroid2 -Wl,--start-group extension sound environ visual base tjs2 utils msg onig -Wl,--end-group
+add_executable(kk4v src/main.cpp src/vita_backend.cpp src/vita_klog.cpp src/vita_movie.cpp)
+target_link_libraries(kk4v -Wl,--start-group extension sound environ visual base tjs2 utils msg onig -Wl,--end-group
     -lavformat -lavcodec -lswscale -lswresample -lavutil -lmp3lame -lmpg123
     -lSDL2 -lopenal -lopusfile -lopus -lvorbisfile -lvorbis -logg
     -lfreetype -lpng -lturbojpeg -ljpeg -lwebp -lz -lm -lc
@@ -118,9 +118,9 @@ target_link_libraries(kirikiroid2 -Wl,--start-group extension sound environ visu
 )
 
 include("$ENV{VITASDK}/share/vita.cmake")
-vita_create_self(kirikiroid2.self kirikiroid2)
-vita_create_vpk(kirikiroid2.vpk "KIRIKIRI2" kirikiroid2.self
+vita_create_self(kk4v.self kk4v)
+vita_create_vpk(kk4v.vpk "KIRIKIRI2" kk4v.self
     VERSION 01.00
-    NAME "Kirikiroid2"
+    NAME "KK4V - KiriKiri 4 Vita"
     FILE ${CMAKE_CURRENT_SOURCE_DIR}/assets/default.ttf default.ttf
 )

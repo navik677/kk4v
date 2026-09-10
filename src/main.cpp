@@ -302,7 +302,7 @@ static void drawMenu(SDL_Renderer* renderer, SDLFontRenderer& font,
     // Header
     drawRect(renderer, 0, 0, SCREEN_W, 64, COL_HEADER_BG);
     drawRect(renderer, 0, 64, SCREEN_W, 2, COL_ACCENT);
-    font.drawText(renderer, 30, 46, 26, COL_TITLE, "Kirikiroid2 for PS Vita");
+    font.drawText(renderer, 30, 46, 26, COL_TITLE, "KK4V - KiriKiri 4 Vita");
     font.drawText(renderer, SCREEN_W - 150, 46, 16, COL_HINT_TX, "KK4V v0.1");
     font.drawText(renderer, SCREEN_W - 150, 26, 12,
                   g_LogOk ? COL_TAG_TJS : COL_ACCENT,
@@ -537,7 +537,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create the one and only SDL window+renderer (shared with engine)
-    s_SDLWindow = SDL_CreateWindow("Kirikiroid2",
+    s_SDLWindow = SDL_CreateWindow("KK4V",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         SCREEN_W, SCREEN_H, SDL_WINDOW_SHOWN);
     if (s_SDLWindow) {
