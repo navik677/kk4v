@@ -1465,6 +1465,11 @@ bool iTVPBaseBitmap::Blt(tjs_int x, tjs_int y, const iTVPBaseBitmap *ref,
 	iTVPRenderMethod *rmethod = mgr->GetRenderMethod(opa, hda, method);
 	if (!rmethod) return false;
 	iTVPTexture2D *reftex = GetTexture();
+	{
+		char m[140];
+		snprintf(m, sizeof(m), "[KK4V] Blt %dx%d->%dx%d", ref->GetWidth(), ref->GetHeight(), bmpw, bmph);
+		KK4V_Log(m);
+	}
 	mgr->OperateRect(rmethod, GetTextureForRender(rmethod->IsBlendTarget(), &rect), reftex,
 		rect, tRenderTexRectArray(src_tex));
 #if 0
@@ -3999,6 +4004,7 @@ bool iTVPBaseBitmap::AffineBlt(tTVPRect destrect, const iTVPBaseBitmap *ref,
 	if (!_method) return false;
 	tRenderTexQuadArray::Element src_tex[] = { tRenderTexQuadArray::Element(ref->GetTexture(), refpt) };
 	iTVPTexture2D *reftex = GetTexture();
+	KK4V_Log("[KK4V] AffineBlt/OperateTriangles called");
 	mgr->OperateTriangles(_method, 2, GetTextureForRender(_method->IsBlendTarget(), &destrect),
 		reftex, destrect, dstpt, tRenderTexQuadArray(src_tex));
 	if (updaterect) *updaterect = destrect;
