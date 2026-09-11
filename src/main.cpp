@@ -14,6 +14,13 @@
 #include <cstdlib>
 #include "vita_klog.h"
 
+// Recognized by vita-elf-create at build time (like sceUserMainThreadStackSize)
+// to size this module's heap in its packaged metadata. The toolchain default
+// is small and this content-heavy VN (large XP3-sourced textures) hit a
+// genuine "Cannot allocate memory for Bitmap" failure for an ordinary
+// 800x600 (~1.9MB) allocation well within the Vita's 512MB RAM.
+extern "C" unsigned int sceLibcHeapSize = 200 * 1024 * 1024;
+
 static bool g_LogOk = false;
 static unsigned int g_RawButtons = 0; // live SceCtrl button bitmask, for on-screen input debugging
 

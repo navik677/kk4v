@@ -1754,7 +1754,7 @@ parse_start:
 							// variable that fell out of scope) must not kill
 							// the whole scenario thread; treat it as false,
 							// same as an ordinary falsy result.
-							KK4V_Log("[KK4V] KAGParser: cond eval threw, treating as false");
+							KK4V_Log("[KK4V] KAGParser: cond eval threw");
 							val = tTJSVariant((tjs_int)0);
 						}
 
@@ -1795,7 +1795,7 @@ parse_start:
 						}
 						catch(...)
 						{
-							KK4V_Log("[KK4V] KAGParser: elsif cond eval threw, treating as false");
+							KK4V_Log("[KK4V] KAGParser: cond eval threw");
 							val = tTJSVariant((tjs_int)0);
 						}
 
@@ -2268,7 +2268,7 @@ parse_start:
 						// a variable that isn't visible in this eval context
 						// (e.g. a local "skip" flag from an @eval tag) must
 						// not abort tag processing for the whole scenario.
-						KK4V_Log("[KK4V] KAGParser: tag cond eval threw, treating as false");
+						KK4V_Log("[KK4V] KAGParser: cond eval threw");
 						val = tTJSVariant((tjs_int)0);
 					}
 					condition = val.operator bool();
