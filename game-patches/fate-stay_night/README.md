@@ -16,8 +16,14 @@ Both scripts declare a scenario-local variable with `var` inside one
 `@eval exp="..."` tag, then reference it from a *separate* tag's
 `cond=`/`file=&` attribute right after:
 
-- `FlowTrackerPlugin.ks`: `@eval exp="var skbg=...'+f.route"` then
-  `@bg cond="...!=skbg" file=&skbg ...`
+- `FlowTrackerPlugin.ks`: four occurrences --
+  `var skbg=...'+f.route` then `@bg cond="...!=skbg" file=&skbg ...`;
+  `var _date=...`/`var _title=...` then `[emb exp=_date]`/`[emb exp=_title]`
+  (the day-title card, e.g. "1st Day: Breakfast preparation..."); and
+  `var flow_tracker_flag=...` then `@jump cond="flow_tracker_flag==1"`
+  and `@if exp="flow_tracker_flag==2"` right after -- this last one is
+  what actually caused the black screen on pressing START, since it
+  gates whether the next scene's script even runs.
 - `ロゴ.ks` (the TYPE-MOON opening logo): `@eval exp="var skip=false"`
   then `cond=!skip` on ~14 separate `@move`/`@waittrig`/`@trans` tags
 
@@ -30,12 +36,12 @@ including two failed attempts at an engine-level fix). No official fix
 for this exists in any of the game's own patch archives (`patch.xp3`,
 `rufix.xp3`, `patch5.xp3` were checked).
 
-The fix here is content-only: replace the bare `var skbg`/`var skip`
-with `f.skbg`/`f.skip` (`f` is the game's own persistent scenario-flag
-object, already used this way everywhere else in these same scripts),
-so the value survives on `f` for the very next tag to read. All other
-lines are untouched -- verified by diffing against the original
-decrypted archive content.
+The fix here is content-only: qualify each bare name (`skbg`, `_date`,
+`_title`, `flow_tracker_flag`, `skip`) onto `f.` (the game's own
+persistent scenario-flag object, already used this way everywhere else
+in these same scripts), so the value survives on `f` for a later tag
+to read. All other lines are untouched -- verified by diffing against
+the original decrypted archive content.
 
 Symptoms before the patch: background never renders during a specific
 skip-BG check (silent, one-time), and the entire TYPE-MOON opening logo
