@@ -6,6 +6,7 @@
 #include "SysInitIntf.h"
 #include "EventIntf.h"
 #include "DebugIntf.h"
+#include "GraphicsLoaderIntf.h"
 
 class BasicAllocator : public iTVPMemoryAllocator
 {
@@ -58,7 +59,7 @@ public:
 					size /= 2;
 				}
 				if( size > (512LL*1024*1024) ) {
-					size = (512LL*1024*1024); // 512MB‚É§ŒÀ
+					size = (512LL*1024*1024); // 512MBï¿½Éï¿½ï¿½ï¿½
 				}
 			}
 			while( HeapHandle == NULL && size > (1024*1024) ) {
@@ -140,6 +141,17 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 	tjs_uint allocbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
 
 	ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
+	if(!ptr)
+	{
+		// Same recovery this codebase already uses before other
+		// memory-heavy operations (see TVPSaveAsPNG/TVPSaveAsBMP): the
+		// graphic cache holds decoded images that are not currently
+		// displayed, kept around only to speed up a possible reload.
+		// On a heap this tight, freeing it is worth trying before
+		// giving up on an ordinary allocation.
+		TVPClearGraphicCache();
+		ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
+	}
 	if(!ptr) TVPThrowExceptionMessage(TVPCannotAllocateBitmapBits,
 		TJS_W("at TVPAllocBitmapBits"), ttstr((tjs_int)allocbytes) + TJS_W("(") +
 			ttstr((int)width) + TJS_W("x") + ttstr((int)height) + TJS_W(")"));
