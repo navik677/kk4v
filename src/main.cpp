@@ -57,6 +57,8 @@ static void OnTerminate() {
 #include "environ/vkdefine.h"
 #include "WindowIntf.h"
 #include "tvpinputdefs.h"
+#include "ScriptMgnIntf.h"
+#include "tjsDictionary.h"
 
 #include <pthread.h>
 
@@ -473,9 +475,7 @@ static std::string showGameMenu(SDL_Window* window, SDL_Renderer* renderer) {
 
             if (pressed & SCE_CTRL_CROSS) {
                 result = games[selected].path;
-                char selMsg[300];
-                snprintf(selMsg, sizeof(selMsg), "[KK4V] Selected: %s", result.c_str());
-                KK4V_Log(selMsg);
+                KK4V_Log("[KK4V] Selected");
                 // Immediate visual feedback so it's obvious the press registered,
                 // even if file logging or the engine load hangs afterwards.
                 SDL_SetRenderDrawColor(renderer, COL_BG.r, COL_BG.g, COL_BG.b, 255);
@@ -614,6 +614,23 @@ int main(int argc, char *argv[]) {
     }
     KK4V_Log("[KK4V] StartApplication() returned");
 
+    // One-shot diagnostic: does a `var` declared in one EvalExpression()
+    // call become visible to a SEPARATE, later EvalExpression() call given
+    // the same context object? This is exactly the pattern KAGParser.cpp's
+    // Owner-based cond/attribute evaluation relies on for scripts that do
+    // `@eval exp="var x=..."` then later `cond=!x` / `file=&x`.
+    {
+        tTJSVariant r1, r2;
+        TVPExecuteExpression(ttstr(TJS_W("var kk4vProbe = 42;")), (iTJSDispatch2*)nullptr, &r1);
+        const char *msg = "[KK4V] VARPROBE: ok";
+        try {
+            TVPExecuteExpression(ttstr(TJS_W("kk4vProbe")), (iTJSDispatch2*)nullptr, &r2);
+        } catch (...) {
+            msg = "[KK4V] VARPROBE: threw";
+        }
+        KK4V_Log(msg);
+    }
+
     SDL_Joystick* joystick = nullptr;
     if (SDL_NumJoysticks() > 0) joystick = SDL_JoystickOpen(0);
 
@@ -666,18 +683,12 @@ int main(int argc, char *argv[]) {
             tTJSNI_Window* win = TVPGetActiveWindow();
             for (const auto &bm : kButtonMap) {
                 if (pressed & bm.mask) {
-                    char logMsg[64];
-                    snprintf(logMsg, sizeof(logMsg), "[KK4V] pad DOWN: %s (buttons=%08x)", bm.name, pad.buttons);
-                    KK4V_Log(logMsg);
                     if (win) {
                         win->OnKeyDown(bm.vk, 0);
                         if (bm.ch) win->OnKeyPress(bm.ch);
                     }
                 }
                 if (released & bm.mask) {
-                    char logMsg[64];
-                    snprintf(logMsg, sizeof(logMsg), "[KK4V] pad UP: %s", bm.name);
-                    KK4V_Log(logMsg);
                     if (win) win->OnKeyUp(bm.vk, 0);
                 }
             }
