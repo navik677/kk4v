@@ -94,8 +94,8 @@ static tTVPAtExit
 void TVPSetFontRasterizer( tjs_int index ) {
 	if( TVPCurrentFontRasterizers != index && index >= 0 && index < FONT_RASTER_EOT ) {
 		TVPCurrentFontRasterizers = index;
-		TVPClearFontCache(); // ƒ‰ƒXƒ^ƒ‰ƒCƒU‚ªØ‚è‘Ö‚í‚éŽžAƒLƒƒƒbƒVƒ…‚ÍƒNƒŠƒA‚µ‚Ä‚µ‚Ü‚¤
-		TVPGlobalFontStateMagic++; // ApplyFont ‚ª‘–‚é‚æ‚¤‚É‚·‚é
+		TVPClearFontCache(); // ï¿½ï¿½ï¿½Xï¿½^ï¿½ï¿½ï¿½Cï¿½Uï¿½ï¿½ï¿½Ø‚ï¿½Ö‚ï¿½éŽžï¿½Aï¿½Lï¿½ï¿½ï¿½bï¿½Vï¿½ï¿½ï¿½ÍƒNï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½
+		TVPGlobalFontStateMagic++; // ApplyFont ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½
 	}
 }
 tjs_int TVPGetFontRasterizer() {
@@ -612,6 +612,7 @@ void tTVPNativeBaseBitmap::SetSizeAndImageBuffer(tTVPBitmap* bmp)
 //---------------------------------------------------------------------------
 tjs_uint tTVPNativeBaseBitmap::GetBPP() const
 {
+	if (!Bitmap) return 0;
 	switch (Bitmap->GetFormat()) {
 	case TVPTextureFormat::Gray:
 		return 8;
@@ -630,16 +631,23 @@ tjs_uint tTVPNativeBaseBitmap::GetBPP() const
 //---------------------------------------------------------------------------
 bool tTVPNativeBaseBitmap::Is32BPP() const
 {
-	return Bitmap->GetFormat() != TVPTextureFormat::Gray; 
+	// A null Bitmap (layer with no allocated image) must not crash here --
+	// returning false routes into this method's many callers' existing
+	// "if(!Is32BPP()) TVPThrowExceptionMessage(...)" handling instead of
+	// dereferencing a null pointer's vtable.
+	if (!Bitmap) return false;
+	return Bitmap->GetFormat() != TVPTextureFormat::Gray;
 }
 //---------------------------------------------------------------------------
 bool tTVPNativeBaseBitmap::Is8BPP() const
 {
+	if (!Bitmap) return false;
 	return Bitmap->GetFormat() == TVPTextureFormat::Gray;
 }
 
 bool tTVPNativeBaseBitmap::IsOpaque() const
 {
+	if (!Bitmap) return false;
 	return Bitmap->IsOpaque();
 }
 
