@@ -56,8 +56,6 @@ static void OnTerminate() {
 #include "environ/vkdefine.h"
 #include "WindowIntf.h"
 #include "tvpinputdefs.h"
-#include "ScriptMgnIntf.h"
-#include "tjsDictionary.h"
 
 #include <pthread.h>
 
@@ -602,25 +600,6 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     KK4V_Log("[KK4V] StartApplication() returned");
-
-    // One-shot diagnostic: the tjsInterCodeExec.cpp EEXP fix (statement
-    // mode via ExecScript) did NOT fix the real "var doesn't survive to
-    // a later, separate eval" bug on hardware. Test whether a bare
-    // `x=..;` with no `var` at all (implicit-global assignment) promotes
-    // the name onto the shared context object where `var` did not.
-    {
-        tTJSVariant rB;
-        iTJSDispatch2 *probeCtx = TJSCreateDictionaryObject();
-        const char *msg = "[KK4V] SCRIPTPROBE noVar: ok";
-        try {
-            TVPExecuteScript(ttstr(TJS_W("kk4vProbeB = 2;")), probeCtx);
-            TVPExecuteExpression(ttstr(TJS_W("kk4vProbeB")), probeCtx, &rB);
-        } catch (...) {
-            msg = "[KK4V] SCRIPTPROBE noVar: threw";
-        }
-        if (probeCtx) probeCtx->Release();
-        KK4V_Log(msg);
-    }
 
     SDL_Joystick* joystick = nullptr;
     if (SDL_NumJoysticks() > 0) joystick = SDL_JoystickOpen(0);

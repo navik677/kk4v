@@ -2916,20 +2916,7 @@ void tTJSInterCodeContext::Eval(tTJSVariant &val,
 			if(resneed)
 				Block->GetTJS()->EvalExpression(str, &res, objthis);
 			else
-			{
-				// EEXP (postfix '!' used as a statement, no value wanted):
-				// run in script/statement mode, not expression mode. Only
-				// this mode promotes a top-level `var` declaration to a
-				// member of objthis (see the ctTopLevel branch in
-				// tTJSInterCodeContext::AddLocalVariable) -- expression
-				// mode always keeps it as a throwaway local, invisible to
-				// any later, separate eval/EvalExpression call even when
-				// it shares the same context object. Unlike expression
-				// mode, statement mode requires a terminator, which KAG
-				// eval= strings never include.
-				str += TJS_W(';');
-				Block->GetTJS()->ExecScript(str, NULL, objthis);
-			}
+				Block->GetTJS()->EvalExpression(str, NULL, objthis);
 		}
 		if(resneed) val = res;
 	}
