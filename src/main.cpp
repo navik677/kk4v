@@ -33,7 +33,6 @@
 extern "C" unsigned int _newlib_heap_size_user = 160 * 1024 * 1024;
 
 static bool g_LogOk = false;
-static unsigned int g_RawButtons = 0; // live SceCtrl button bitmask, for on-screen input debugging
 
 static void InitFileLogging() {
     sceIoMkdir("ux0:data/kirikiroid2", 0777);
@@ -57,6 +56,8 @@ static void OnTerminate() {
 #include "environ/vkdefine.h"
 #include "WindowIntf.h"
 #include "tvpinputdefs.h"
+#include "ScriptMgnIntf.h"
+#include "tjsDictionary.h"
 
 #include <pthread.h>
 
@@ -325,14 +326,6 @@ static void drawMenu(SDL_Renderer* renderer, SDLFontRenderer& font,
     font.drawText(renderer, SCREEN_W - 150, 26, 12,
                   g_LogOk ? COL_TAG_TJS : COL_ACCENT,
                   g_LogOk ? "log: ok" : "log: FAILED");
-    {
-        // Live raw button bitmask — proves whether SceCtrl input is being
-        // received at all, independent of file logging.
-        char padBuf[32];
-        snprintf(padBuf, sizeof(padBuf), "pad: %08X", g_RawButtons);
-        font.drawText(renderer, SCREEN_W - 150, 12, 12, COL_HINT_TX, padBuf);
-    }
-
     if (games.empty()) {
         int centerY = SCREEN_H / 2;
         const char* msg1 = "No visual novels found!";
@@ -459,7 +452,6 @@ static std::string showGameMenu(SDL_Window* window, SDL_Renderer* renderer) {
     while (running) {
         sceCtrlPeekBufferPositive(0, &pad, 1);
         unsigned int pressed = pad.buttons & ~oldPad.buttons;
-        g_RawButtons = pad.buttons;
 
         if (!games.empty()) {
             if (pressed & SCE_CTRL_UP) {
@@ -610,6 +602,25 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     KK4V_Log("[KK4V] StartApplication() returned");
+
+    // One-shot diagnostic: the tjsInterCodeExec.cpp EEXP fix (statement
+    // mode via ExecScript) did NOT fix the real "var doesn't survive to
+    // a later, separate eval" bug on hardware. Test whether a bare
+    // `x=..;` with no `var` at all (implicit-global assignment) promotes
+    // the name onto the shared context object where `var` did not.
+    {
+        tTJSVariant rB;
+        iTJSDispatch2 *probeCtx = TJSCreateDictionaryObject();
+        const char *msg = "[KK4V] SCRIPTPROBE noVar: ok";
+        try {
+            TVPExecuteScript(ttstr(TJS_W("kk4vProbeB = 2;")), probeCtx);
+            TVPExecuteExpression(ttstr(TJS_W("kk4vProbeB")), probeCtx, &rB);
+        } catch (...) {
+            msg = "[KK4V] SCRIPTPROBE noVar: threw";
+        }
+        if (probeCtx) probeCtx->Release();
+        KK4V_Log(msg);
+    }
 
     SDL_Joystick* joystick = nullptr;
     if (SDL_NumJoysticks() > 0) joystick = SDL_JoystickOpen(0);
