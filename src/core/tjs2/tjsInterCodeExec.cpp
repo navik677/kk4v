@@ -865,7 +865,7 @@ void tTJSInterCodeContext::ExecuteAsFunction(iTJSDispatch2 *objthis,
 		catch(...)
 		{
 #ifdef ENABLE_DEBUGGER
-			// Œ³‚É–ß‚·
+			// ï¿½ï¿½ï¿½É–ß‚ï¿½
 			DebuggerScopeKey = oldkey;
 			DebuggerRegisterArea = oldra;
 #endif	// ENABLE_DEBUGGER
@@ -879,7 +879,7 @@ void tTJSInterCodeContext::ExecuteAsFunction(iTJSDispatch2 *objthis,
 		}
 
 #ifdef ENABLE_DEBUGGER
-		// Œ³‚É–ß‚·
+		// ï¿½ï¿½ï¿½É–ß‚ï¿½
 		DebuggerScopeKey = oldkey;
 		DebuggerRegisterArea = oldra;
 #endif	// ENABLE_DEBUGGER
@@ -2916,7 +2916,15 @@ void tTJSInterCodeContext::Eval(tTJSVariant &val,
 			if(resneed)
 				Block->GetTJS()->EvalExpression(str, &res, objthis);
 			else
-				Block->GetTJS()->EvalExpression(str, NULL, objthis);
+				// EEXP (postfix '!' used as a statement, no value wanted):
+				// run in script/statement mode, not expression mode. Only
+				// this mode promotes a top-level `var` declaration to a
+				// member of objthis (see the ctTopLevel branch in
+				// tTJSInterCodeContext::AddLocalVariable) -- expression
+				// mode always keeps it as a throwaway local, invisible to
+				// any later, separate eval/EvalExpression call even when
+				// it shares the same context object.
+				Block->GetTJS()->ExecScript(str, NULL, objthis);
 		}
 		if(resneed) val = res;
 	}
