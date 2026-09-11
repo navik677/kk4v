@@ -75,3 +75,41 @@ the parameter dictionary shape (`src`/`sleft`/`stop`/`swidth`/`sheight`
 Install: copy `afterinit.tjs` into the same
 `ux0:data/kirikiroid2/fate-stay_night/` folder alongside the two files
 above.
+
+## Full sweep for the same cross-tag var pattern
+
+After finding the same bug three separate times (skbg, then
+_date/_title/flow_tracker_flag, all in FlowTrackerPlugin.ks), scanned
+every `.ks` file in `RealtaNua.xp3` (~780 files) for the same shape:
+a standalone `@eval exp="var NAME=..."` tag whose NAME is referenced
+again elsewhere in the file. 15 files matched; one (`voice.ks`, `_b`)
+turned out to be a false positive -- the only reference is commented
+out (`;//...`) so it never actually runs. The rest are real and are
+included here, same fix (qualify onto `f.`), each diffed against the
+original to confirm no unrelated line changed:
+
+- `タイトル.ks` (the actual title-screen script, run right after the
+  logo/prologue sequence) -- `es`/`skip`. This is very likely the
+  direct cause of black boxes on the title screen and the logo
+  appearing to "hang": `@if exp=!skip||...` throws and is treated as
+  false, so the caution-screen block is silently skipped, and a
+  separate uncaught throw on `sf.effectSkip=es` triggers an error
+  MessageBox that stalls everything until dismissed.
+- `ConditionPlugin.ks` -- `tmp`/`tmpcnt` (a repeated nega/change_condition
+  flicker effect, used by "bad ending" style condition reveals).
+- `マクロ.ks` -- `___scrsize`/`___curfullscreen` (fullscreen toggle
+  macro), `__font` (message-font-change macro), `changed`
+  (`@changefg` character-swap macro).
+- `DashPlugin.ks` -- `tx`/`ty`/`src`, used only in one specific
+  `@eval`/`@eval` pair (line ~741-743, a foreground/background swap
+  effect). Patched by exact line match, not a whole-file substitution:
+  `tx`/`ty`/`src` are also genuine local variables inside unrelated
+  functions elsewhere in this file, so a blind find/replace would have
+  broken those.
+- `セイバーエピローグ.ks`, `凛エピローグ.ks`, `凛エピローグ2.ks` (twice),
+  `桜エピローグ.ks`, `桜エピローグ2.ks`, `ミニ劇場その1/2/3.ks` -- all the
+  identical `es`/`sf.effectSkip` pattern from `タイトル.ks`, copy-pasted
+  across every epilogue and mini-theater route.
+
+Install: copy each of these files into
+`ux0:data/kirikiroid2/fate-stay_night/` the same way.
