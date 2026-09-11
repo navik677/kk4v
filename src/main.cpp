@@ -30,7 +30,15 @@
 // fails outright above some ceiling well below that, rather than
 // degrading to smaller successful mallocs at runtime. Keep this
 // increase modest and comfortably under that ceiling.
-extern "C" unsigned int _newlib_heap_size_user = 160 * 1024 * 1024;
+//
+// 160MiB launches fine but still isn't enough once previously-skipped
+// KAG @bg crossfades actually execute (a content-patch fix elsewhere
+// made a background image load that used to silently no-op): still
+// the same "Cannot allocate memory for Bitmap" on an ordinary ~1.9MB
+// allocation, just later into a real playthrough instead of at boot.
+// 224MiB is a more conservative step up from the 320MiB that crashed
+// outright, not a re-attempt at the same ceiling.
+extern "C" unsigned int _newlib_heap_size_user = 224 * 1024 * 1024;
 
 static bool g_LogOk = false;
 
