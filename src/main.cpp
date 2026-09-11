@@ -19,10 +19,18 @@
 // accepts it as a no-op here). Default is 128MiB, which this
 // content-heavy VN's cumulative XP3 texture/asset loading can exhaust,
 // causing "Cannot allocate memory for Bitmap" on an ordinary ~1.9MB
-// allocation later on. Bumped well past the default, leaving headroom
-// under the Vita's ~512MB for the stack, GPU/kernel-reserved memory,
-// and other allocators.
-extern "C" unsigned int _newlib_heap_size_user = 320 * 1024 * 1024;
+// allocation later on.
+//
+// 320MiB crashed on launch, before this app's own boot log even got
+// written -- this SELF isn't built with the UNSAFE attribute, and a
+// "safe" homebrew app's actual grantable memory budget on real
+// hardware is well under the Vita's full 512MB (much of it is
+// reserved for the system/other budgets); the initial
+// sceKernelAllocMemBlock-based heap reservation itself apparently
+// fails outright above some ceiling well below that, rather than
+// degrading to smaller successful mallocs at runtime. Keep this
+// increase modest and comfortably under that ceiling.
+extern "C" unsigned int _newlib_heap_size_user = 160 * 1024 * 1024;
 
 static bool g_LogOk = false;
 static unsigned int g_RawButtons = 0; // live SceCtrl button bitmask, for on-screen input debugging
