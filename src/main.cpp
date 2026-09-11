@@ -36,9 +36,19 @@
 // made a background image load that used to silently no-op): still
 // the same "Cannot allocate memory for Bitmap" on an ordinary ~1.9MB
 // allocation, just later into a real playthrough instead of at boot.
-// 224MiB is a more conservative step up from the 320MiB that crashed
-// outright, not a re-attempt at the same ceiling.
-extern "C" unsigned int _newlib_heap_size_user = 224 * 1024 * 1024;
+//
+// Tried 224MiB next; that failed WORSE and EARLIER than either 160 or
+// 320 -- an "Internal error" instantiating the built-in
+// KAGWaveSoundBuffer class during the very first BGM/audio init at
+// boot, before any scenario script even runs. This wasn't a case of
+// "bigger heap = bigger ceiling before failure": something about this
+// specific value's memory layout starves a native (non-newlib-heap)
+// allocation that 160MiB and presumably other values don't. Back to
+// 160MiB (the only value confirmed stable across this whole session)
+// until the late-game bitmap OOM is addressed some other way --
+// reducing what's actually resident at that point, not by guessing at
+// more heap-size values one hardware round-trip at a time.
+extern "C" unsigned int _newlib_heap_size_user = 160 * 1024 * 1024;
 
 static bool g_LogOk = false;
 
