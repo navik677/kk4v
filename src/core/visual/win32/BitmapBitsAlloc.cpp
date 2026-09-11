@@ -7,6 +7,8 @@
 #include "EventIntf.h"
 #include "DebugIntf.h"
 #include "GraphicsLoaderIntf.h"
+#include "vita_klog.h"
+#include <cstdio>
 
 class BasicAllocator : public iTVPMemoryAllocator
 {
@@ -105,6 +107,13 @@ public:
 iTVPMemoryAllocator* tTVPBitmapBitsAlloc::Allocator = NULL;
 tTJSCriticalSection tTVPBitmapBitsAlloc::AllocCS;
 
+// Running total of bytes currently held by live bitmap pixel data, tracked
+// by hand instead of via newlib's mallinfo() (which pulls in enough extra
+// linked code to blow this build's razor-thin SCE segment budget). Tells
+// us whether an OOM here is genuine bitmap-driven exhaustion or something
+// else is eating the heap.
+static tjs_uint64 TVPTotalBitmapBytes = 0;
+
 void tTVPBitmapBitsAlloc::InitializeAllocator() {
 	if( Allocator == NULL ) {
 #if 0
@@ -152,9 +161,17 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 		TVPClearGraphicCache();
 		ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
 	}
+	if(!ptr)
+	{
+		char diag[64];
+		snprintf(diag, sizeof(diag), "[KK4V] Bitmap OOM, live=%uKB",
+			(unsigned)(TVPTotalBitmapBytes / 1024));
+		KK4V_Log(diag);
+	}
 	if(!ptr) TVPThrowExceptionMessage(TVPCannotAllocateBitmapBits,
 		TJS_W("at TVPAllocBitmapBits"), ttstr((tjs_int)allocbytes) + TJS_W("(") +
 			ttstr((int)width) + TJS_W("x") + ttstr((int)height) + TJS_W(")"));
+	TVPTotalBitmapBytes += size;
 	// align to a paragraph ( 16-bytes )
 	ptr += 16 + sizeof(tTVPLayerBitmapMemoryRecord);
 	*reinterpret_cast<tTJSPointerSizedInteger*>(&ptr) >>= 4;
@@ -199,6 +216,7 @@ void tTVPBitmapBitsAlloc::Free( void* ptr ) {
 		if(~(*(tjs_uint32*)(bptr + record->size      )) != record->sentinel_backup2)
 			TVPThrowExceptionMessage( TVPLayerBitmapBufferOverrunDetectedCheckYourDrawingCode );
 
+		TVPTotalBitmapBytes -= record->size;
 		Allocator->free( record->alloc_ptr );
 	}
 }
