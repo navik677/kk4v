@@ -41,3 +41,31 @@ Symptoms before the patch: background never renders during a specific
 skip-BG check (silent, one-time), and the entire TYPE-MOON opening logo
 animation is skipped outright (every `cond=!skip` tag throws and is
 treated as false).
+
+## afterinit.tjs -- missing global Stretch()
+
+Once the two scripts above were fixed, the logo intro plays fully and
+crashes at its end: `DashPlugin.ks`'s `finish()`/`splineMoving()` call a
+bare global `Stretch(%[src:...,dest:...,...])`, which throws `Member
+"Stretch" does not exist`. This isn't a script bug -- scanned all ~850
+`.ks`/`.tjs` files across every archive (`data.xp3`, `patch2.xp3`,
+`rupatch.xp3`, `RealtaNua.xp3`, `rufix.xp3`) and none define `Stretch`.
+On the real Windows engine it comes from `util.dll` (present in the
+game folder, a common third-party kirikiri plugin), loaded natively
+before any scenario script runs. This port's `TVPLoadPlugin` is
+stubbed out (can't run native x86 DLLs on Vita/ARM), so the global
+was simply never defined here.
+
+`afterinit.tjs` is a *built-in engine hook* (checked by the stock
+kirikiroid2/krkrz engine itself before the first scenario script runs,
+independent of anything KK4V-specific) -- copying it into the game
+folder is enough for the engine to load and run it automatically. It
+defines `global.Stretch` as a thin wrapper around the layer's own
+native `operateStretch()` (which this engine does implement), matching
+the parameter dictionary shape (`src`/`sleft`/`stop`/`swidth`/`sheight`
++ `dest`/`dleft`/`dtop`/`dwidth`/`dheight` + `opa` or `opacity`) that
+`DashPlugin.ks` and similar effect scripts call it with.
+
+Install: copy `afterinit.tjs` into the same
+`ux0:data/kirikiroid2/fate-stay_night/` folder alongside the two files
+above.
