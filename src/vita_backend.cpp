@@ -269,9 +269,7 @@ template<> float IndividualConfigManager::GetValue<float>(const std::string &nam
 void TVPDetectCPU() {}
 extern "C" void TVPGL_ASM_Init() {}
 void TVPExitApplication(int code) {
-    char logMsg[64];
-    snprintf(logMsg, sizeof(logMsg), "[KK4V] TVPExitApplication(%d) called", code);
-    KK4V_Log(logMsg);
+    KK4V_Log("[KK4V] TVPExitApplication called");
     SDL_Quit();
     exit(code);
 }

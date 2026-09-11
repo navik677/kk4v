@@ -578,16 +578,10 @@ int main(int argc, char *argv[]) {
         TVPSetDefaultReadEncoding(ttstr(forcedEncoding.c_str()));
     }
 
-    {
-        char startMsg[300];
-        snprintf(startMsg, sizeof(startMsg), "[KK4V] Starting: %s", gamePath.c_str());
-        KK4V_Log(startMsg);
-    }
     EnableFateCryptIfPresent(gamePath);
     ttstr gamePathW(gamePath.c_str());
 
     try {
-        KK4V_Log("[KK4V] Calling StartApplication()...");
         Application->StartApplication(gamePathW);
     } catch (const std::exception &e) {
         char msg[300];

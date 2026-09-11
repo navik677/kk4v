@@ -513,7 +513,14 @@ tTVPNativeBaseBitmap::tTVPNativeBaseBitmap(/*tjs_uint w, tjs_uint h, tjs_uint bp
 	FontChanged = true;
 	GlobalFontState = -1;
 	TextWidth = TextHeight = 0;
-	//Bitmap = new tTVPBitmap(w, h, bpp);
+	// Bitmap was never initialized here (this line used to construct a real
+	// tTVPBitmap; that type isn't used on this port and the assignment was
+	// simply commented out), leaving it as indeterminate garbage rather than
+	// null. Any caller relying on the many "if(!Bitmap) ..." guards
+	// elsewhere in this class would instead dereference a wild pointer --
+	// which crashes at a different, unrelated-looking address every time,
+	// depending on whatever was on the heap when this object was allocated.
+	Bitmap = nullptr;
 }
 //---------------------------------------------------------------------------
 tTVPNativeBaseBitmap::tTVPNativeBaseBitmap(const tTVPNativeBaseBitmap & r)
@@ -541,36 +548,39 @@ tTVPNativeBaseBitmap::~tTVPNativeBaseBitmap()
 //---------------------------------------------------------------------------
 tjs_uint tTVPNativeBaseBitmap::GetWidth() const
 {
+	if (!Bitmap) return 0;
 	return Bitmap->GetWidth();
 }
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::SetWidth(tjs_uint w)
 {
-	SetSize(w, Bitmap->GetHeight());
+	SetSize(w, Bitmap ? Bitmap->GetHeight() : 1);
 }
 //---------------------------------------------------------------------------
 tjs_uint tTVPNativeBaseBitmap::GetHeight() const
 {
+	if (!Bitmap) return 0;
 	return Bitmap->GetHeight();
 }
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::SetHeight(tjs_uint h)
 {
-	SetSize(Bitmap->GetWidth(), h);
+	SetSize(Bitmap ? Bitmap->GetWidth() : 1, h);
 }
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::SetSize(tjs_uint w, tjs_uint h, bool keepimage)
 {
 	if (w == 0) w = 1;
 	if (h == 0) h = 1;
-	if (Bitmap->GetWidth() != w || Bitmap->GetHeight() != h)
+	if (!Bitmap || Bitmap->GetWidth() != w || Bitmap->GetHeight() != h)
 	{
 		// create a new bitmap and copy existing bitmap
 		iTVPTexture2D *newbitmap;
-		if (keepimage)
+		if (keepimage && Bitmap)
 			newbitmap = GetRenderManager()->CreateTexture2D(w, h, Bitmap);
 		else
-			newbitmap = GetRenderManager()->CreateTexture2D(nullptr, 0, w, h, Bitmap->GetFormat());
+			newbitmap = GetRenderManager()->CreateTexture2D(nullptr, 0, w, h,
+				Bitmap ? Bitmap->GetFormat() : TVPTextureFormat::RGBA);
 #if 0
 		tTVPBitmap *newbitmap = new tTVPBitmap(w, h, Bitmap->GetBPP());
 
@@ -594,7 +604,7 @@ void tTVPNativeBaseBitmap::SetSize(tjs_uint w, tjs_uint h, bool keepimage)
 				memcpy(newbitmap->GetPalette(), Bitmap->GetPalette(), sizeof(tjs_uint)*tTVPBitmap::DEFAULT_PALETTE_COUNT);
 		}
 #endif
-		Bitmap->Release();
+		if (Bitmap) Bitmap->Release();
 		Bitmap = newbitmap;
 
 		FontChanged = true;
@@ -605,7 +615,7 @@ void tTVPNativeBaseBitmap::SetSizeAndImageBuffer(tTVPBitmap* bmp)
 {
 	// create a new bitmap and copy existing bitmap
 	iTVPTexture2D *newbitmap = GetRenderManager()->CreateTexture2D(bmp);
-	Bitmap->Release();
+	if (Bitmap) Bitmap->Release();
 	Bitmap = newbitmap;
 	FontChanged = true;
 }
@@ -656,9 +666,9 @@ bool tTVPNativeBaseBitmap::Assign(const tTVPNativeBaseBitmap &rhs)
 {
 	if(this == &rhs || Bitmap == rhs.Bitmap) return false;
 
-	Bitmap->Release();
+	if (Bitmap) Bitmap->Release();
 	Bitmap = rhs.Bitmap;
-	Bitmap->AddRef();
+	if (Bitmap) Bitmap->AddRef();
 
 	Font = rhs.Font;
 	FontChanged = true; // informs internal font information is invalidated
@@ -672,9 +682,9 @@ bool tTVPNativeBaseBitmap::AssignBitmap(const tTVPNativeBaseBitmap &rhs)
 	// assign only bitmap
 	if(this == &rhs || Bitmap == rhs.Bitmap) return false;
 
-	Bitmap->Release();
+	if (Bitmap) Bitmap->Release();
 	Bitmap = rhs.Bitmap;
-	Bitmap->AddRef();
+	if (Bitmap) Bitmap->AddRef();
 
 	// font information are not copyed
 	FontChanged = true; // informs internal font information is invalidated
@@ -685,9 +695,9 @@ bool tTVPNativeBaseBitmap::AssignTexture(iTVPTexture2D *tex)
 {
 	if (Bitmap == tex) return false;
 
-	Bitmap->Release();
+	if (Bitmap) Bitmap->Release();
 	Bitmap = tex;// CreateTexture2D(bmp);
-	Bitmap->AddRef();
+	if (Bitmap) Bitmap->AddRef();
 
     // font information are not copyed
     FontChanged = true; // informs internal font information is invalidated
@@ -697,12 +707,14 @@ bool tTVPNativeBaseBitmap::AssignTexture(iTVPTexture2D *tex)
 //---------------------------------------------------------------------------
 const void * tTVPNativeBaseBitmap::GetScanLine(tjs_uint l) const
 {
+	if (!Bitmap) return nullptr;
 	return Bitmap->GetScanLineForRead(l);
 }
 //---------------------------------------------------------------------------
 void * tTVPNativeBaseBitmap::GetScanLineForWrite(tjs_uint l)
 {
 	Independ();
+	if (!Bitmap) return nullptr;
 	return Bitmap->GetScanLineForWrite(l);
 }
 //---------------------------------------------------------------------------
@@ -715,6 +727,7 @@ tjs_int tTVPNativeBaseBitmap::GetPitchBytes() const
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::Independ()
 {
+	if (!Bitmap) return;
 	// sever Bitmap's image sharing
 	if (Bitmap->IsIndependent() && !Bitmap->IsStatic()) return;
 	iTVPTexture2D *newb = GetRenderManager()->CreateTexture2D(Bitmap->GetWidth(), Bitmap->GetHeight(), Bitmap);
@@ -726,24 +739,26 @@ void tTVPNativeBaseBitmap::Independ()
 void tTVPNativeBaseBitmap::IndependNoCopy()
 {
 	// indepent the bitmap, but not to copy the original bitmap
-	if (!Bitmap->IsStatic() && Bitmap->IsIndependent()) return;
+	if (Bitmap && !Bitmap->IsStatic() && Bitmap->IsIndependent()) return;
 	Recreate();
 }
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::Recreate()
 {
-	Recreate(Bitmap->GetWidth(), Bitmap->GetHeight(), Bitmap->GetFormat() == TVPTextureFormat::Gray ? 8 : 32);
+	Recreate(Bitmap ? Bitmap->GetWidth() : 1, Bitmap ? Bitmap->GetHeight() : 1,
+		(Bitmap && Bitmap->GetFormat() == TVPTextureFormat::Gray) ? 8 : 32);
 }
 //---------------------------------------------------------------------------
 void tTVPNativeBaseBitmap::Recreate(tjs_uint w, tjs_uint h, tjs_uint bpp)
 {
-	Bitmap->Release();
+	if (Bitmap) Bitmap->Release();
 	Bitmap = GetRenderManager()->CreateTexture2D(nullptr, 0, w, h, bpp == 8 ? TVPTextureFormat::Gray : TVPTextureFormat::RGBA);
 	FontChanged = true; // informs internal font information is invalidated
 }
 
 bool tTVPNativeBaseBitmap::IsIndependent() const
 {
+	if (!Bitmap) return true;
 	return Bitmap->IsIndependent() && !Bitmap->IsStatic();
 }
 #if 0
@@ -1601,7 +1616,7 @@ void tTVPNativeBaseBitmap::GetFontGlyphDrawRect( const ttstr & text, struct tTVP
 	GetCurrentRasterizer()->GetGlyphDrawRect( text, area );
 }
 iTVPTexture2D * tTVPNativeBaseBitmap::GetTextureForRender(bool isBlendTarget, const tTVPRect *rc) {
-	if (isBlendTarget || !rc) Independ();
+	if (isBlendTarget || !rc || !Bitmap) Independ();
 	else {
 		int w = Bitmap->GetWidth(), h = Bitmap->GetHeight();
 		if (rc->left == 0 && rc->top == 0 && rc->right >= w && rc->bottom >= h) {

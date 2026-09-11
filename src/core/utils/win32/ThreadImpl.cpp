@@ -199,17 +199,14 @@ tjs_int TVPGetThreadNum(void)
 //---------------------------------------------------------------------------
 void TVPExecThreadTask(int numThreads, TVP_THREAD_TASK_FUNC func)
 {
-  KK4V_Log(numThreads == 0 ? "[KK4V] Task0 >" : (numThreads == 1 ? "[KK4V] Task1 >" : "[KK4V] TaskN >"));
   if (numThreads == 1) {
     func(0);
-    KK4V_Log("[KK4V] Task <");
     return;
   }
 #if !defined(USING_THREADPOOL11)
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < numThreads; ++i)
 	  func(i);
-  KK4V_Log("[KK4V] Task <");
 #else
   static threadpool11::Pool pool;
   std::vector<std::future<void>> futures;
