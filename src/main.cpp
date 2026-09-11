@@ -602,9 +602,8 @@ int main(int argc, char *argv[]) {
     try {
         Application->StartApplication(gamePathW);
     } catch (const std::exception &e) {
-        char msg[300];
-        snprintf(msg, sizeof(msg), "[KK4V] StartApplication() threw std::exception: %s", e.what());
-        KK4V_Log(msg);
+        KK4V_Log("[KK4V] StartApplication() threw std::exception");
+        KK4V_Log(e.what());
         sceKernelExitProcess(0);
         return -1;
     } catch (...) {
@@ -621,13 +620,15 @@ int main(int argc, char *argv[]) {
     // `@eval exp="var x=..."` then later `cond=!x` / `file=&x`.
     {
         tTJSVariant r1, r2;
-        TVPExecuteExpression(ttstr(TJS_W("var kk4vProbe = 42;")), (iTJSDispatch2*)nullptr, &r1);
+        iTJSDispatch2 *probeCtx = TJSCreateDictionaryObject();
         const char *msg = "[KK4V] VARPROBE: ok";
         try {
-            TVPExecuteExpression(ttstr(TJS_W("kk4vProbe")), (iTJSDispatch2*)nullptr, &r2);
+            TVPExecuteExpression(ttstr(TJS_W("var kk4vProbe = 42;")), probeCtx, &r1);
+            TVPExecuteExpression(ttstr(TJS_W("kk4vProbe")), probeCtx, &r2);
         } catch (...) {
             msg = "[KK4V] VARPROBE: threw";
         }
+        if (probeCtx) probeCtx->Release();
         KK4V_Log(msg);
     }
 
@@ -697,9 +698,8 @@ int main(int argc, char *argv[]) {
         try {
             Application->Run();
         } catch (const std::exception &e) {
-            char msg[300];
-            snprintf(msg, sizeof(msg), "[KK4V] Application->Run() threw std::exception: %s", e.what());
-            KK4V_Log(msg);
+            KK4V_Log("[KK4V] Application->Run() threw std::exception");
+            KK4V_Log(e.what());
             break;
         } catch (...) {
             KK4V_Log("[KK4V] Application->Run() threw unknown exception");
