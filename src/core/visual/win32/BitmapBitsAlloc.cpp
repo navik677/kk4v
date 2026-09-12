@@ -164,7 +164,14 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 
 	InitializeAllocator();
 	tjs_uint8 * ptrorg, * ptr;
-	tjs_uint allocbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+	tjs_uint neededbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+	// Round the actual allocation up to a 256KiB bucket: scene bitmaps
+	// come in many close-but-not-identical sizes (796x593, 800x600, ...),
+	// so an exact-size cache/reuse check misses most of the time. Bucketing
+	// means nearby sizes share one physical block instead of each
+	// round-tripping through malloc/free (and fragmenting the heap)
+	// separately, at the cost of a bit of unused padding per bitmap.
+	tjs_uint allocbytes = (neededbytes + 0x3FFFF) & ~(tjs_uint)0x3FFFF;
 
 	if (TVPBitmapFreeCache && TVPBitmapFreeCacheBytes == allocbytes) {
 		ptr = ptrorg = (tjs_uint8*)TVPBitmapFreeCache;
@@ -220,8 +227,9 @@ void tTVPBitmapBitsAlloc::Free( void* ptr ) {
 			TVPThrowExceptionMessage( TVPLayerBitmapBufferOverrunDetectedCheckYourDrawingCode );
 
 		if (!TVPBitmapFreeCache) {
+			tjs_uint neededbytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
 			TVPBitmapFreeCache = record->alloc_ptr;
-			TVPBitmapFreeCacheBytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+			TVPBitmapFreeCacheBytes = (neededbytes + 0x3FFFF) & ~(tjs_uint)0x3FFFF;
 		} else {
 			Allocator->free( record->alloc_ptr );
 		}
