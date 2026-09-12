@@ -114,6 +114,7 @@ tTJSCriticalSection tTVPBitmapBitsAlloc::AllocCS;
 // on the title screen: need fresh numbers to tell whether that's still
 // fragmentation or genuine peak-usage growth this time.
 static tjs_uint64 TVPTotalBitmapBytes = 0;
+tjs_uint64 TVPGetTotalBitmapBytes() { return TVPTotalBitmapBytes; }
 //
 // Recycle the last couple of freed buffers instead of handing them back
 // to malloc: on Free(), stash into whichever slot is empty rather than
