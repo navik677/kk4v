@@ -6,9 +6,6 @@
 #include "SysInitIntf.h"
 #include "EventIntf.h"
 #include "DebugIntf.h"
-#include "GraphicsLoaderIntf.h"
-#include "vita_klog.h"
-#include <cstdio>
 
 class BasicAllocator : public iTVPMemoryAllocator
 {
@@ -107,12 +104,26 @@ public:
 iTVPMemoryAllocator* tTVPBitmapBitsAlloc::Allocator = NULL;
 tTJSCriticalSection tTVPBitmapBitsAlloc::AllocCS;
 
-// Running total of bytes currently held by live bitmap pixel data, tracked
-// by hand instead of via newlib's mallinfo() (which pulls in enough extra
-// linked code to blow this build's razor-thin SCE segment budget). Tells
-// us whether an OOM here is genuine bitmap-driven exhaustion or something
-// else is eating the heap.
-static tjs_uint64 TVPTotalBitmapBytes = 0;
+// Confirmed on hardware (a one-off mallinfo()-free diagnostic, since
+// removed): "Cannot allocate memory for Bitmap" for an ordinary ~1.8MB
+// (800x600) request while only ~111MB of bitmap data was actually live
+// on a 160MB heap -- tens of MB nominally free, yet the malloc still
+// failed. That is fragmentation, not exhaustion: this allocator is
+// plain newlib malloc/free with no compaction, and VN bitmap traffic
+// (the same handful of sizes -- one full-screen resolution above all --
+// allocated and freed over and over as scenes change) fragments a small
+// fixed heap badly.
+//
+// Recycle the single most recently freed buffer instead of handing it
+// back to malloc: on Free(), stash it here rather than calling
+// Allocator->free(); on Alloc(), if it's an exact size match, reuse it
+// instead of calling Allocator->allocate() at all. One slot is enough
+// to stop the single dominant hot size (one full-screen resolution)
+// from ever round-tripping through malloc/free, without needing a real
+// allocator (or the code size of a multi-slot pool, which doesn't fit
+// this build's budget).
+static void *TVPBitmapFreeCache = NULL;
+static tjs_uint TVPBitmapFreeCacheBytes = 0;
 
 void tTVPBitmapBitsAlloc::InitializeAllocator() {
 	if( Allocator == NULL ) {
@@ -135,7 +146,13 @@ void tTVPBitmapBitsAlloc::InitializeAllocator() {
 	}
 }
 void tTVPBitmapBitsAlloc::FreeAllocator() {
-	if( Allocator ) delete Allocator;
+	if( Allocator ) {
+		if (TVPBitmapFreeCache) {
+			Allocator->free(TVPBitmapFreeCache);
+			TVPBitmapFreeCache = NULL;
+		}
+		delete Allocator;
+	}
 	Allocator = NULL;
 }
 static tTVPAtExit
@@ -149,29 +166,15 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 	tjs_uint8 * ptrorg, * ptr;
 	tjs_uint allocbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
 
-	ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
-	if(!ptr)
-	{
-		// Same recovery this codebase already uses before other
-		// memory-heavy operations (see TVPSaveAsPNG/TVPSaveAsBMP): the
-		// graphic cache holds decoded images that are not currently
-		// displayed, kept around only to speed up a possible reload.
-		// On a heap this tight, freeing it is worth trying before
-		// giving up on an ordinary allocation.
-		TVPClearGraphicCache();
+	if (TVPBitmapFreeCache && TVPBitmapFreeCacheBytes == allocbytes) {
+		ptr = ptrorg = (tjs_uint8*)TVPBitmapFreeCache;
+		TVPBitmapFreeCache = NULL;
+	} else {
 		ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
-	}
-	if(!ptr)
-	{
-		char diag[64];
-		snprintf(diag, sizeof(diag), "[KK4V] Bitmap OOM, live=%uKB",
-			(unsigned)(TVPTotalBitmapBytes / 1024));
-		KK4V_Log(diag);
 	}
 	if(!ptr) TVPThrowExceptionMessage(TVPCannotAllocateBitmapBits,
 		TJS_W("at TVPAllocBitmapBits"), ttstr((tjs_int)allocbytes) + TJS_W("(") +
 			ttstr((int)width) + TJS_W("x") + ttstr((int)height) + TJS_W(")"));
-	TVPTotalBitmapBytes += size;
 	// align to a paragraph ( 16-bytes )
 	ptr += 16 + sizeof(tTVPLayerBitmapMemoryRecord);
 	*reinterpret_cast<tTJSPointerSizedInteger*>(&ptr) >>= 4;
@@ -216,8 +219,12 @@ void tTVPBitmapBitsAlloc::Free( void* ptr ) {
 		if(~(*(tjs_uint32*)(bptr + record->size      )) != record->sentinel_backup2)
 			TVPThrowExceptionMessage( TVPLayerBitmapBufferOverrunDetectedCheckYourDrawingCode );
 
-		TVPTotalBitmapBytes -= record->size;
-		Allocator->free( record->alloc_ptr );
+		if (!TVPBitmapFreeCache) {
+			TVPBitmapFreeCache = record->alloc_ptr;
+			TVPBitmapFreeCacheBytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+		} else {
+			Allocator->free( record->alloc_ptr );
+		}
 	}
 }
 
