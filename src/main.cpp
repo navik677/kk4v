@@ -608,12 +608,17 @@ int main(int argc, char *argv[]) {
 
     // TVPGraphicCacheSystemLimit (the ceiling `System.graphicCacheLimit=-1`
     // resets to) is never initialized anywhere in this codebase and stays
-    // 0 -- so "-1" silently disables the cache instead of restoring a
-    // sane default, exactly what FlowTrackerPlugin.ks relies on
-    // (`System.graphicCacheLimit=5*1024*1024; System.graphicCacheLimit=-1`).
-    // 24MiB holds a bit over a dozen decoded 800x600 32bpp frames without
-    // meaningfully competing with a 160MiB heap.
-    TVPGraphicCacheSystemLimit = 24 * 1024 * 1024;
+    // 0. Tried 24MiB (a bit over a dozen decoded 800x600 32bpp frames)
+    // reasoning it would fix FlowTrackerPlugin.ks's
+    // `System.graphicCacheLimit=5*1024*1024; System.graphicCacheLimit=-1`
+    // resetting to a disabled cache -- but a decoded image stays cached
+    // (and its underlying bitmap memory alive) even after every layer
+    // referencing it calls @freeimage, since the cache itself then holds
+    // its own reference. On a heap this tight, "keep a decoded image
+    // around in case something asks for it again soon" costs more than
+    // it could ever save. Left at 0 (cache disabled) -- correctness of
+    // the -1 reset is a smaller concern than this.
+    TVPGraphicCacheSystemLimit = 0;
 
     try {
         Application->StartApplication(gamePathW);
