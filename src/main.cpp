@@ -76,6 +76,14 @@ static void OnTerminate() {
 #include "tvpinputdefs.h"
 #include "GraphicsLoaderIntf.h"
 
+// Frees textures queued by iTVPTexture2D::Release() (see RenderManager.cpp);
+// the cocos2d/android/win32 frame loops all call this every tick already,
+// the Vita SDL2 loop below never did, so every released texture piled up
+// in that queue forever instead of being freed. Minimal stub instead of
+// including RenderManager.h -- RecycleProcess is static (no vtable/layout
+// dependency), so this links against the real definition just fine.
+class iTVPTexture2D { public: static void RecycleProcess(); };
+
 #include <pthread.h>
 
 extern "C" void* const __attribute__((used)) _force_pthread_cancel = (void*)&pthread_cancel;
@@ -699,6 +707,7 @@ int main(int argc, char *argv[]) {
         oldPad = pad;
         try {
             Application->Run();
+            iTVPTexture2D::RecycleProcess();
         } catch (const std::exception &e) {
             KK4V_Log("[KK4V] Application->Run() threw std::exception");
             KK4V_Log(e.what());
