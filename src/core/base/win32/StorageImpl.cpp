@@ -608,15 +608,22 @@ bool TVPCheckExistentLocalFile(const ttstr &name)
 #endif
 	tTVP_stat s;
     bool exists = TVP_stat(name.c_str(), s);
+    if(!exists) {
+        // Deliberately not logged: this runs on every candidate extension
+        // for every asset lookup (tens of thousands of calls in a full
+        // playthrough), and vita_klog.h's logger does a real
+        // open/write/close per call -- logging every miss here made
+        // ordinary asset resolution audibly slow on real hardware. Only
+        // the hit that actually resolves a storage name is worth the
+        // cost of a log line.
+        return false; // not exist
+    }
     {
         std::string narrow = name.AsNarrowStdString();
         char logMsg[400];
-        snprintf(logMsg, sizeof(logMsg), "[KK4V] TVPCheckExistentLocalFile(\"%s\") -> stat=%d mode=0%o",
-                 narrow.c_str(), exists ? 1 : 0, exists ? (unsigned)s.st_mode : 0u);
+        snprintf(logMsg, sizeof(logMsg), "[KK4V] TVPCheckExistentLocalFile(\"%s\") -> stat=1 mode=0%o",
+                 narrow.c_str(), (unsigned)s.st_mode);
         KK4V_Log(logMsg);
-    }
-    if(!exists) {
-        return false; // not exist
     }
     return (s.st_mode & S_IFREG) || (s.st_mode & 0020000);
 }
