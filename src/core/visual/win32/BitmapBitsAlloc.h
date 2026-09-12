@@ -38,5 +38,10 @@ public:
 	static void Free( void* ptr );
 };
 
+// Exposes the running live-bitmap-bytes total to callers outside this file
+// (e.g. a script-visible property), so memory checkpoints can be placed by
+// editing game scripts instead of rebuilding the engine each time.
+extern tjs_uint64 TVPGetTotalBitmapBytes();
+
 #endif // __BITMAP_BITS_ALLOC_H__
 
