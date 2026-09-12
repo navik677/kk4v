@@ -114,16 +114,18 @@ tTJSCriticalSection tTVPBitmapBitsAlloc::AllocCS;
 // allocated and freed over and over as scenes change) fragments a small
 // fixed heap badly.
 //
-// Recycle the single most recently freed buffer instead of handing it
-// back to malloc: on Free(), stash it here rather than calling
-// Allocator->free(); on Alloc(), if it's an exact size match, reuse it
-// instead of calling Allocator->allocate() at all. One slot is enough
-// to stop the single dominant hot size (one full-screen resolution)
-// from ever round-tripping through malloc/free, without needing a real
-// allocator (or the code size of a multi-slot pool, which doesn't fit
-// this build's budget).
-static void *TVPBitmapFreeCache = NULL;
-static tjs_uint TVPBitmapFreeCacheBytes = 0;
+// Recycle the last couple of freed buffers instead of handing them back
+// to malloc: on Free(), stash into whichever slot is empty rather than
+// calling Allocator->free(); on Alloc(), reuse a slot on an exact size
+// match instead of calling Allocator->allocate() at all. Two exact-size
+// slots (unrolled rather than a loop over an array, to fit this build's
+// SCE segment budget) already covers the two hot sizes seen on hardware
+// (one full-screen resolution, plus one slightly-cropped variant) without
+// the memory overhead a size-rounding scheme would add to every bitmap.
+static void *TVPBitmapFreeCache0 = NULL;
+static tjs_uint TVPBitmapFreeCacheBytes0 = 0;
+static void *TVPBitmapFreeCache1 = NULL;
+static tjs_uint TVPBitmapFreeCacheBytes1 = 0;
 
 void tTVPBitmapBitsAlloc::InitializeAllocator() {
 	if( Allocator == NULL ) {
@@ -147,10 +149,8 @@ void tTVPBitmapBitsAlloc::InitializeAllocator() {
 }
 void tTVPBitmapBitsAlloc::FreeAllocator() {
 	if( Allocator ) {
-		if (TVPBitmapFreeCache) {
-			Allocator->free(TVPBitmapFreeCache);
-			TVPBitmapFreeCache = NULL;
-		}
+		if (TVPBitmapFreeCache0) { Allocator->free(TVPBitmapFreeCache0); TVPBitmapFreeCache0 = NULL; }
+		if (TVPBitmapFreeCache1) { Allocator->free(TVPBitmapFreeCache1); TVPBitmapFreeCache1 = NULL; }
 		delete Allocator;
 	}
 	Allocator = NULL;
@@ -164,18 +164,14 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 
 	InitializeAllocator();
 	tjs_uint8 * ptrorg, * ptr;
-	tjs_uint neededbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
-	// Round the actual allocation up to a 256KiB bucket: scene bitmaps
-	// come in many close-but-not-identical sizes (796x593, 800x600, ...),
-	// so an exact-size cache/reuse check misses most of the time. Bucketing
-	// means nearby sizes share one physical block instead of each
-	// round-tripping through malloc/free (and fragmenting the heap)
-	// separately, at the cost of a bit of unused padding per bitmap.
-	tjs_uint allocbytes = (neededbytes + 0x3FFFF) & ~(tjs_uint)0x3FFFF;
+	tjs_uint allocbytes = 16 + size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
 
-	if (TVPBitmapFreeCache && TVPBitmapFreeCacheBytes == allocbytes) {
-		ptr = ptrorg = (tjs_uint8*)TVPBitmapFreeCache;
-		TVPBitmapFreeCache = NULL;
+	if (TVPBitmapFreeCache0 && TVPBitmapFreeCacheBytes0 == allocbytes) {
+		ptr = ptrorg = (tjs_uint8*)TVPBitmapFreeCache0;
+		TVPBitmapFreeCache0 = NULL;
+	} else if (TVPBitmapFreeCache1 && TVPBitmapFreeCacheBytes1 == allocbytes) {
+		ptr = ptrorg = (tjs_uint8*)TVPBitmapFreeCache1;
+		TVPBitmapFreeCache1 = NULL;
 	} else {
 		ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
 	}
@@ -226,10 +222,13 @@ void tTVPBitmapBitsAlloc::Free( void* ptr ) {
 		if(~(*(tjs_uint32*)(bptr + record->size      )) != record->sentinel_backup2)
 			TVPThrowExceptionMessage( TVPLayerBitmapBufferOverrunDetectedCheckYourDrawingCode );
 
-		if (!TVPBitmapFreeCache) {
-			tjs_uint neededbytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
-			TVPBitmapFreeCache = record->alloc_ptr;
-			TVPBitmapFreeCacheBytes = (neededbytes + 0x3FFFF) & ~(tjs_uint)0x3FFFF;
+		tjs_uint allocbytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+		if (!TVPBitmapFreeCache0) {
+			TVPBitmapFreeCache0 = record->alloc_ptr;
+			TVPBitmapFreeCacheBytes0 = allocbytes;
+		} else if (!TVPBitmapFreeCache1) {
+			TVPBitmapFreeCache1 = record->alloc_ptr;
+			TVPBitmapFreeCacheBytes1 = allocbytes;
 		} else {
 			Allocator->free( record->alloc_ptr );
 		}
