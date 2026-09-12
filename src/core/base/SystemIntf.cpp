@@ -24,7 +24,6 @@
 #include "DebugIntf.h"
 #include "ConfigManager/LocaleConfigManager.h"
 #include "Platform.h"
-#include "BitmapBitsAlloc.h"
 
 extern bool TVPStartupSuccess;
 
@@ -375,18 +374,6 @@ TJS_BEGIN_NATIVE_PROP_DECL(graphicCacheLimit)
 	TJS_END_NATIVE_PROP_SETTER
 }
 TJS_END_NATIVE_STATIC_PROP_DECL(graphicCacheLimit)
-//----------------------------------------------------------------------
-TJS_BEGIN_NATIVE_PROP_DECL(kk4vLiveBitmapKB)
-{
-	TJS_BEGIN_NATIVE_PROP_GETTER
-	{
-		*result = (tjs_int)(TVPGetTotalBitmapBytes() / 1024);
-		return TJS_S_OK;
-	}
-	TJS_END_NATIVE_PROP_GETTER
-	TJS_DENY_NATIVE_PROP_SETTER
-}
-TJS_END_NATIVE_STATIC_PROP_DECL(kk4vLiveBitmapKB)
 //----------------------------------------------------------------------
 TJS_BEGIN_NATIVE_PROP_DECL(platformName)
 {
