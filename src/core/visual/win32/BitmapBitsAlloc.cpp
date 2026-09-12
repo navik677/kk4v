@@ -146,6 +146,21 @@ void tTVPBitmapBitsAlloc::InitializeAllocator() {
 			Allocator = new GlobalAllocAllocator();
 		}
 #endif
+		// Pre-seed both cache slots with the two hot sizes confirmed on
+		// hardware (800x600 crossfades, and a 796x593 variant) right now,
+		// while the heap is at its most contiguous -- this is the very
+		// first bitmap allocation of the whole run. The free-on-Free()
+		// recycle path alone wasn't enough: the FIRST request of either
+		// size still had to succeed via plain malloc on a heap already
+		// fragmented by everything allocated before it, which is exactly
+		// what kept failing. A pre-seeded slot means even that first
+		// request is already satisfied.
+		tjs_uint bytes0 = 16 + 1920040u + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+		TVPBitmapFreeCache0 = Allocator->allocate(bytes0);
+		TVPBitmapFreeCacheBytes0 = TVPBitmapFreeCache0 ? bytes0 : 0;
+		tjs_uint bytes1 = 16 + 1888152u + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
+		TVPBitmapFreeCache1 = Allocator->allocate(bytes1);
+		TVPBitmapFreeCacheBytes1 = TVPBitmapFreeCache1 ? bytes1 : 0;
 	}
 }
 void tTVPBitmapBitsAlloc::FreeAllocator() {
