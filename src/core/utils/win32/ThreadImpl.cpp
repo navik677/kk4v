@@ -177,6 +177,14 @@ static tjs_int GetProcesserNum(void)
   static tjs_int processor_num = 0;
   if (! processor_num) {
 	  processor_num = std::thread::hardware_concurrency();
+	  // hardware_concurrency() returns 0 on this platform (core count is
+	  // not detectable) instead of "unknown, assume 1" like elsewhere --
+	  // and 0 is not a valid task count. Every TVPExecThreadTask(0, ...)
+	  // caller runs its dispatch loop zero times, silently skipping real
+	  // rendering work (no error, no crash -- the content just never
+	  // gets drawn), and leaving processor_num at 0 also meant this
+	  // "cache" never actually cached, re-logging every single call.
+	  if (processor_num == 0) processor_num = 1;
 	tjs_char tmp[34];
 	TVPAddLog(ttstr(TJS_W("Detected CPU core(s): ")) + TJS_tTVInt_to_str(processor_num, tmp));
   }
