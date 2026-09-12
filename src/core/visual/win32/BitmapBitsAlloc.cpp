@@ -6,6 +6,8 @@
 #include "SysInitIntf.h"
 #include "EventIntf.h"
 #include "DebugIntf.h"
+#include "vita_klog.h"
+#include <cstdio>
 
 class BasicAllocator : public iTVPMemoryAllocator
 {
@@ -104,15 +106,14 @@ public:
 iTVPMemoryAllocator* tTVPBitmapBitsAlloc::Allocator = NULL;
 tTJSCriticalSection tTVPBitmapBitsAlloc::AllocCS;
 
-// Confirmed on hardware (a one-off mallinfo()-free diagnostic, since
-// removed): "Cannot allocate memory for Bitmap" for an ordinary ~1.8MB
-// (800x600) request while only ~111MB of bitmap data was actually live
-// on a 160MB heap -- tens of MB nominally free, yet the malloc still
-// failed. That is fragmentation, not exhaustion: this allocator is
-// plain newlib malloc/free with no compaction, and VN bitmap traffic
-// (the same handful of sizes -- one full-screen resolution above all --
-// allocated and freed over and over as scenes change) fragments a small
-// fixed heap badly.
+// Running total of bytes currently held by live bitmap pixel data
+// (mallinfo() itself pulls in enough extra newlib code to blow this
+// build's SCE segment budget, confirmed once already -- tracking by
+// hand instead). Re-added after the two-slot exact-size cache (f051e46)
+// still hit "Cannot allocate memory" for both known hot sizes at once
+// on the title screen: need fresh numbers to tell whether that's still
+// fragmentation or genuine peak-usage growth this time.
+static tjs_uint64 TVPTotalBitmapBytes = 0;
 //
 // Recycle the last couple of freed buffers instead of handing them back
 // to malloc: on Free(), stash into whichever slot is empty rather than
@@ -175,9 +176,17 @@ void* tTVPBitmapBitsAlloc::Alloc( tjs_uint size, tjs_uint width, tjs_uint height
 	} else {
 		ptr = ptrorg = (tjs_uint8*)Allocator->allocate(allocbytes);
 	}
+	if(!ptr)
+	{
+		char diag[64];
+		snprintf(diag, sizeof(diag), "[KK4V] Bitmap OOM, live=%uKB",
+			(unsigned)(TVPTotalBitmapBytes / 1024));
+		KK4V_Log(diag);
+	}
 	if(!ptr) TVPThrowExceptionMessage(TVPCannotAllocateBitmapBits,
 		TJS_W("at TVPAllocBitmapBits"), ttstr((tjs_int)allocbytes) + TJS_W("(") +
 			ttstr((int)width) + TJS_W("x") + ttstr((int)height) + TJS_W(")"));
+	TVPTotalBitmapBytes += size;
 	// align to a paragraph ( 16-bytes )
 	ptr += 16 + sizeof(tTVPLayerBitmapMemoryRecord);
 	*reinterpret_cast<tTJSPointerSizedInteger*>(&ptr) >>= 4;
@@ -222,6 +231,7 @@ void tTVPBitmapBitsAlloc::Free( void* ptr ) {
 		if(~(*(tjs_uint32*)(bptr + record->size      )) != record->sentinel_backup2)
 			TVPThrowExceptionMessage( TVPLayerBitmapBufferOverrunDetectedCheckYourDrawingCode );
 
+		TVPTotalBitmapBytes -= record->size;
 		tjs_uint allocbytes = 16 + record->size + sizeof(tTVPLayerBitmapMemoryRecord) + sizeof(tjs_uint32)*2;
 		if (!TVPBitmapFreeCache0) {
 			TVPBitmapFreeCache0 = record->alloc_ptr;
